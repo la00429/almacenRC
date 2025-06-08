@@ -21,7 +21,7 @@ services:
       - APP_USER_PWD=${APP_USER_PWD:-Laura2004}
     volumes:
 
-      - ./db_scripts/03_initial_data.sql:/opt/oracle/scripts/startup/03_initial_data.sql
+      - ./db_scripts/03_initial_data.sql:/opt/oracle/scripts/
       - oracle_data:/opt/oracle/oradata
     healthcheck:
       test: ["CMD-SHELL", "ls /opt/oracle/oradata/XE/pdbseed/system01.dbf"]
