@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  oracledb:
+    image: container-registry.oracle.com/database/express:21.3.0-xe
+    container_name: oracledb
+    ports:
+      - "1522:1521"
+      - "8080:8080"
+    environment:
+      - ORACLE_PWD=oracle # Contraseña para usuarios SYS, SYSTEM, PDBADMIN
+      - APP_USER=laura # Usuario de la aplicación (se creará automáticamente)
+      - APP_USER_PWD=Laura2004 # Contraseña para el usuario de la aplicación
+    volumes:
+      - ./db_scripts:/opt/oracle/scripts # Monta tu carpeta de scripts
+      - oracle_data:/opt/oracle/oradata # Volumen para datos persistentes de la DB
+    healthcheck:
+      test: ["CMD-SHELL", "ls /opt/oracle/oradata/XE/pdbseed/system01.dbf"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Mapea un volumen externo para los datos, para que persistan entre reinicios
+    # Si eliminas este volumen, la DB se reiniciará a su estado inicial.
+
+volumes:
+  oracle_data:
+    driver: local
