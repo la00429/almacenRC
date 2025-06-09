@@ -1,17 +1,17 @@
-FROM container-registry.oracle.com/database/express:21.3.0-XE
+FROM container-registry.oracle.com/database/express:21.3.0-xe
 
-ARG APP_USER=laura
-ARG APP_USER_PWD=Laura2004
-ARG ORACLE_PWD=oracle # Contraseña para SYS, SYSTEM, PDBADMIN
+# Establecer variables de entorno
+ENV APP_USER=laura
+ENV APP_USER_PWD=Laura2004
+ENV ORACLE_PWD=oracle
 
-COPY db_scripts/scripts/ /tmp/scripts/
+# SOLO copiar el script de usuario corregido
+COPY db_scripts/scripts/ccuser.sql /opt/oracle/scripts/startup/01_create_user.sql
 
-RUN echo "Creando usuario $APP_USER..." && \
-    sqlplus -S system/$ORACLE_PWD AS SYSDBA @/tmp/ccuser.sql && \
-    echo "Usuario $APP_USER creado y permisos otorgados."
+# Copiar TODOS los scripts directamente al directorio startup (mismo nivel)
+COPY db_scripts/scripts/ /opt/oracle/scripts/startup/
 
-RUN echo "Ejecutando scripts de creación de esquema para $APP_USER..." && \
-    sqlplus -S $APP_USER/$APP_USER_PWD @/tmp/_crebas.sql && \
-    echo "Esquema creado para $APP_USER."
+# Asegurar que el wrapper se ejecute como segundo paso
+COPY db_scripts/scripts/wrapper_crebas.sql /opt/oracle/scripts/startup/02_create_schema.sql
 
-COPY db_scripts/03_initial_data.sql /opt/oracle/scripts/startup/
+# El wrapper ahora puede encontrar _crebas.sql en el mismo directorio

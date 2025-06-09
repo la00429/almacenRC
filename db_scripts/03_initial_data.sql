@@ -4,8 +4,8 @@
 -- Propósito: Cargar datos de prueba para demostración
 -- =====================================================
 
--- Conectar como usuario de aplicación
-CONNECT laura/Laura2004@XE;
+-- Conectar como usuario de aplicación a la PDB XEPDB1
+CONNECT laura/Laura2004@localhost:1521/XEPDB1;
 
 -- Habilitar salida de DBMS_OUTPUT
 SET SERVEROUTPUT ON;
