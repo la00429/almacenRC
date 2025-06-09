@@ -1,203 +1,101 @@
-# 🗄️ AlmacenRC - Sistema de Gestión de Almacén con Oracle Database
+# 🗄️ AlmacenRC - Sistema de Gestión de Almacén
 
-Sistema completo de gestión de almacén construido con Oracle Database XE 21c y PL/SQL.
+Sistema completo de gestión de almacén con backend en **Oracle Database 21c** y una interfaz web con **Flask**.
 
-## 🚀 Inicio Rápido
+## 🚀 Arquitectura
+
+- **Backend**: Base de datos Oracle XE 21c con tablas, paquetes PL/SQL y lógica de negocio.
+- **Interfaz Web**: Aplicación Flask para visualizar y gestionar el inventario.
+- **Orquestación**: Docker y Docker Compose para un despliegue sencillo y consistente.
+
+## ✨ Características
+
+- **Dashboard Interactivo**: Métricas clave como total de productos, alertas de stock bajo y valor del inventario.
+- **Gestión de Productos**: Visualiza, añade, actualiza y elimina productos.
+- **Gestión de Proveedores**: Administra la información de los proveedores.
+- **Directorio de Abastecimiento**: Asigna productos a proveedores para optimizar la cadena de suministro.
+- **API RESTful**: Endpoints para interactuar con la base de datos de forma programática.
+
+## ⚡ Inicio Rápido
 
 ### Prerrequisitos
-- Docker y Docker Compose instalados
-- Al menos 4GB de RAM disponible para Oracle
-- Puertos 1522 y 8080 disponibles
+- Docker y Docker Compose
+- 4GB de RAM disponible
+- Puertos `1522` (Oracle) y `5000` (Web) libres
 
-### ⚡ Instalación en 3 Pasos
+### ⚙️ Instalación
 
-1. **Clonar el repositorio**
-```bash
-git clone <repository-url>
-cd almacenRC
-```
+1.  **Clonar el repositorio**:
+    ```bash
+    git clone <repository-url>
+    cd almacenRC
+    ```
 
-2. **Ejecutar el script de configuración**
-```bash
-# Opción 1: Proceso completo automático (recomendado)
-./init_oracle.sh full
+2.  **Levantar los servicios con Docker Compose**:
+    ```bash
+    docker-compose up --build -d
+    ```
+    Este comando construirá las imágenes y ejecutará la base de datos Oracle y la aplicación web en segundo plano.
 
-# Opción 2: Paso a paso
-./init_oracle.sh rebuild   # Solo contenedor Oracle
-./init_oracle.sh setup     # Usuario y tablas
-./init_oracle.sh packages  # Paquetes PL/SQL
-./init_oracle.sh tests     # Verificar todo
-```
+3.  **Inicializar la Base de Datos**:
+    Usa el script `init_oracle.sh` para configurar la base de datos por primera vez.
+    ```bash
+    ./init_oracle.sh full
+    ```
+    Este proceso puede tardar varios minutos la primera vez mientras se descarga y configura Oracle.
 
-3. **¡Listo! Conectar a la base de datos**
-```bash
-./init_oracle.sh connect
-```
+4.  **Acceder a la Aplicación**:
+    - **Interfaz Web**: [http://localhost:5000](http://localhost:5000)
+    - **Base de Datos**: Conecta tu cliente SQL a `localhost:1522` (Servicio `XEPDB1`).
 
-## 🛠️ Script de Utilidad (`init_oracle.sh`)
+## 🛠️ Uso del Script `init_oracle.sh`
 
-**Este es tu comando principal para todo:**
+Este script simplifica la interacción con el contenedor de Oracle.
 
-```bash
-# Comandos principales
-./init_oracle.sh status    # Ver estado actual
-./init_oracle.sh full      # Instalación completa
-./init_oracle.sh connect   # Conectar a Oracle
+| Comando | Descripción |
+| :--- | :--- |
+| **`./init_oracle.sh full`** | **(Recomendado)** Ejecuta la configuración completa: reconstruye, crea usuario, tablas y paquetes. |
+| `./init_oracle.sh status` | Verifica si Oracle está funcionando correctamente. |
+| `./init_oracle.sh connect`| Inicia una sesión SQL*Plus interactiva con el usuario `LAURA`. |
+| `./init_oracle.sh rebuild`| Detiene y reconstruye el contenedor de Oracle, útil si algo sale mal. |
+| `./init_oracle.sh logs` | Muestra los logs del contenedor de Oracle para depuración. |
 
-# Comandos específicos
-./init_oracle.sh rebuild   # Solo reconstruir contenedor
-./init_oracle.sh setup     # Solo configurar usuario/tablas  
-./init_oracle.sh packages  # Solo instalar paquetes PL/SQL
-./init_oracle.sh tests     # Solo ejecutar pruebas
+Para el uso diario, los comandos más comunes son `status` y `connect`. Si la base de datos no responde, `rebuild` es la solución más fiable.
 
-# Utilidades
-./init_oracle.sh logs      # Ver logs de Oracle
-```
+## 🔐 Credenciales de Conexión
 
-### 🎯 **Casos de Uso Comunes:**
+| Servicio | Usuario | Contraseña | DSN/Conexión |
+| :--- | :--- | :--- | :--- |
+| **Base de Datos (App)** | `laura` | `Laura2004` | `localhost:1522/XEPDB1` |
+| **Base de Datos (Admin)**| `sys` | `oracle` | `localhost:1522/XE` |
+| **Interfaz Web** | N/A | N/A | `http://localhost:5000` |
 
-```bash
-# Primer uso o si algo falla
-./init_oracle.sh full
+## 🗂️ Estructura del Proyecto
 
-# Uso diario - verificar estado
-./init_oracle.sh status
-
-# Trabajar con la base de datos
-./init_oracle.sh connect
-
-# Si hay problemas, ver logs
-./init_oracle.sh logs
-```
-
-## 🔐 Credenciales y Conectividad
-
-| Conexión | Usuario | Contraseña | Puerto | Base de Datos |
-|----------|---------|------------|--------|---------------|
-| **Aplicación** | `laura` | `Laura2004` | `1522` | `XEPDB1` |
-| **Administrador** | `sys` | `oracle` | `1522` | `XE` |
-
-### 📋 Ejemplos de Conexión
-
-```bash
-# Desde el script (recomendado)
-./init_oracle.sh connect
-
-# Manualmente desde el host
-sqlplus laura/Laura2004@localhost:1522/XEPDB1
-
-# Como administrador
-sqlplus sys/oracle@localhost:1522/XE as sysdba
-
-# Desde dentro del contenedor
-docker exec -it oracledb sqlplus laura/Laura2004@localhost:1521/XEPDB1
-```
-
-## 🗂️ Estructura del Sistema
-
-### Base de Datos
-- **17 tablas** principales del sistema de almacén
-- **6 tipos de objetos** PL/SQL personalizados
-- **4 paquetes** PL/SQL con funcionalidades del negocio
-- **Datos de prueba** para desarrollo
-
-### Archivos del Proyecto
 ```
 almacenRC/
-├── init_oracle.sh         # 🎯 SCRIPT PRINCIPAL
-├── docker-compose.yml     # Configuración de servicios
-├── Dockerfile            # Imagen Oracle personalizada
-├── db_scripts/           # Scripts de base de datos
-│   ├── scripts/          # Tablas, datos, pruebas
-│   └── packages/         # Paquetes PL/SQL
-└── README.md            # Este archivo
+├── docker-compose.yml     # Orquesta los servicios de Oracle y Flask
+├── init_oracle.sh         # Script para gestionar la base de datos
+├── db_scripts/            # Todos los scripts SQL para Oracle
+│   ├── scripts/           # Creación de tablas, inserción de datos, etc.
+│   └── packages/          # Lógica de negocio en paquetes PL/SQL
+├── flask-web/             # Código fuente de la aplicación web
+│   ├── app.py             # Lógica principal de Flask
+│   ├── templates/         # Plantillas HTML
+│   └── Dockerfile         # Dockerfile para el servicio web
+└── README.md              # Este archivo
 ```
 
-## 🚨 Resolución de Problemas
+## 🚨 Resolución de Problemas Comunes
 
-### ❌ Oracle no se inicia
-```bash
-./init_oracle.sh logs     # Ver qué está pasando
-./init_oracle.sh rebuild  # Reconstruir desde cero
-```
-
-### ❌ Error de conexión
-```bash
-./init_oracle.sh status   # Verificar estado
-./init_oracle.sh setup    # Reconfigurar usuario
-```
-
-### ❌ Faltan tablas o paquetes
-```bash
-./init_oracle.sh setup     # Crear tablas
-./init_oracle.sh packages  # Instalar paquetes
-```
-
-### ❌ En caso de problemas graves
-```bash
-# Limpieza completa y reinstalación
-docker-compose down -v
-docker system prune -f
-./init_oracle.sh full
-```
-
-## ⏱️ Tiempos Esperados
-
-- **Primer uso**: 5-10 minutos (descarga imagen Oracle)
-- **Rebuild**: 2-3 minutos (imagen ya descargada)
-- **Setup/Packages**: 30-60 segundos cada uno
-- **Tests**: 15-30 segundos
-
-## 🧪 Verificación del Sistema
-
-```bash
-# Estado completo
-./init_oracle.sh status
-
-# Ejecutar todas las pruebas
-./init_oracle.sh tests
-
-# Verificar manualmente
-./init_oracle.sh connect
-SQL> SELECT COUNT(*) FROM user_tables;  -- Debe ser 17
-SQL> SELECT object_name FROM user_objects WHERE object_type = 'PACKAGE';
-```
-
-## 📊 Enterprise Manager (Opcional)
-
-- **URL**: http://localhost:8080/em
-- **Usuario**: `sys`
-- **Contraseña**: `oracle`
-- **Como**: `SYSDBA`
-
-## 🔄 Mantenimiento
-
-### Backup
-```bash
-# Crear backup
-docker run --rm -v almacenrc_oracle_data:/data -v $(pwd):/backup ubuntu \
-  tar czf /backup/oracle_backup.tar.gz /data
-```
-
-### Restaurar
-```bash
-# Restaurar backup
-docker run --rm -v almacenrc_oracle_data:/data -v $(pwd):/backup ubuntu \
-  tar xzf /backup/oracle_backup.tar.gz -C /
-```
-
-## 📚 Documentación Adicional
-
-- [Scripts de Base de Datos](./db_scripts/README.md)
-- [Oracle Database XE 21c](https://docs.oracle.com/en/database/oracle/oracle-database/21/)
+- **`./init_oracle.sh` no funciona**: Asegúrate de que tenga permisos de ejecución (`chmod +x init_oracle.sh`).
+- **Error de conexión a la base de datos**:
+    1.  Verifica el estado con `./init_oracle.sh status`.
+    2.  Si no responde, revisa los logs con `./init_oracle.sh logs`.
+    3.  Como último recurso, reconstruye la base de datos con `./init_oracle.sh rebuild` y luego ejecuta `./init_oracle.sh setup`.
+- **La web (`localhost:5000`) no carga**:
+    1.  Asegúrate de que los contenedores estén corriendo con `docker ps`.
+    2.  Revisa los logs del servicio web: `docker-compose logs flask-web`.
 
 ---
-
-## 💡 Resumen para Uso Diario
-
-1. **Primera vez**: `./init_oracle.sh full`
-2. **Verificar estado**: `./init_oracle.sh status` 
-3. **Trabajar con DB**: `./init_oracle.sh connect`
-4. **Si hay problemas**: `./init_oracle.sh logs` y después `./init_oracle.sh rebuild`
-
-**🎯 Comando más importante**: `./init_oracle.sh full` - hace todo automáticamente. 
+_Este `README` fue actualizado para reflejar la nueva estructura y simplificar las instrucciones._ 
