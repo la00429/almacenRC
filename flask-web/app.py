@@ -84,20 +84,20 @@ def productos():
     try:
         cursor = conn.cursor()
         
-        # Usar package PKG_PRODUCTOS.OBTENER_TODOS
+        # Usar package PKG_PRODUCTOS.FN_GET_ALL_PRODUCTS_FOR_APEX
         ref_cursor = cursor.var(oracledb.CURSOR)
-        cursor.callproc('PKG_PRODUCTOS.OBTENER_TODOS', [ref_cursor])
+        cursor.callproc('PKG_PRODUCTOS.FN_GET_ALL_PRODUCTS_FOR_APEX', [ref_cursor])
         
         productos_data = []
         for row in ref_cursor.getvalue():
             productos_data.append({
                 'id': row[0],           # ID_PRODUCTO
-                'nombre': row[1],       # NOMBRE
-                'stock': row[2],        # STOCK
-                'precio': row[3],       # VALOR_UNITARIO
-                'vencimiento': row[4],  # FECHA_VENC
-                'iva': row[5],          # IVA
-                'estado': 'CRITICO' if row[2] < 10 else 'BAJO' if row[2] < 30 else 'NORMAL'
+                'nombre': row[2],       # NOMBRE
+                'stock': row[3],        # STOCK
+                'precio': row[4],       # VALOR_UNITARIO
+                'vencimiento': row[5],  # FECHA_VENC
+                'iva': row[6],          # IVA
+                'estado': 'CRITICO' if row[3] < 10 else 'BAJO' if row[3] < 30 else 'NORMAL'
             })
         
         cursor.close()
@@ -119,20 +119,20 @@ def api_productos():
     try:
         cursor = conn.cursor()
         
-        # Usar package PKG_PRODUCTOS.OBTENER_TODOS
+        # Usar package PKG_PRODUCTOS.FN_GET_ALL_PRODUCTS_FOR_APEX
         ref_cursor = cursor.var(oracledb.CURSOR)
-        cursor.callproc('PKG_PRODUCTOS.OBTENER_TODOS', [ref_cursor])
+        cursor.callproc('PKG_PRODUCTOS.FN_GET_ALL_PRODUCTS_FOR_APEX', [ref_cursor])
         
         productos = []
         for row in ref_cursor.getvalue():
             productos.append({
                 'id_producto': row[0],
-                'nombre': row[1],
-                'stock': row[2],
-                'valor_unitario': row[3],
-                'fecha_venc': row[4],  # Fecha incluida
-                'iva': row[5],
-                'estado_stock': 'CRITICO' if row[2] < 10 else 'BAJO' if row[2] < 30 else 'NORMAL'
+                'nombre': row[2],
+                'stock': row[3],
+                'valor_unitario': row[4],
+                'fecha_venc': row[5],
+                'iva': row[6],
+                'estado_stock': 'CRITICO' if row[3] < 10 else 'BAJO' if row[3] < 30 else 'NORMAL'
             })
         
         cursor.close()
@@ -241,10 +241,15 @@ def api_actualizar_producto(producto_id):
         data = request.get_json()
         cursor = conn.cursor()
         
-        # Usar package PKG_PRODUCTOS.ACTUALIZAR_STOCK
-        cursor.callproc('PKG_PRODUCTOS.ACTUALIZAR_STOCK', [
+        # Usar package PKG_PRODUCTOS.PR_ACTUALIZAR_PRODUCTO
+        cursor.callproc('PKG_PRODUCTOS.PR_ACTUALIZAR_PRODUCTO', [
             producto_id,
-            data['stock']
+            data.get('id_marca'),
+            data.get('nombre'),
+            data.get('stock'),
+            data.get('valor_unitario'),
+            data.get('fecha_venc'),
+            data.get('iva')
         ])
         
         cursor.close()
@@ -252,7 +257,7 @@ def api_actualizar_producto(producto_id):
         
         return jsonify({
             'success': True,
-            'message': f'Stock del producto {producto_id} actualizado a {data.get("stock")} unidades',
+            'message': f'Producto {producto_id} actualizado exitosamente',
             'timestamp': datetime.now().isoformat()
         })
         
@@ -269,8 +274,8 @@ def api_eliminar_producto(producto_id):
     try:
         cursor = conn.cursor()
         
-        # Usar package PKG_PRODUCTOS.ELIMINAR
-        cursor.callproc('PKG_PRODUCTOS.ELIMINAR', [producto_id])
+        # Usar package PKG_PRODUCTOS.PR_ELIMINAR_PRODUCTO
+        cursor.callproc('PKG_PRODUCTOS.PR_ELIMINAR_PRODUCTO', [producto_id])
         
         cursor.close()
         conn.close()
@@ -295,9 +300,9 @@ def api_proveedores():
     try:
         cursor = conn.cursor()
         
-        # Usar package PKG_PROVEEDORES.OBTENER_TODOS
+        # Usar package PKG_PROVEEDORES.FN_GET_ALL_PROVEEDORES_FOR_APEX
         ref_cursor = cursor.var(oracledb.CURSOR)
-        cursor.callproc('PKG_PROVEEDORES.OBTENER_TODOS', [ref_cursor])
+        cursor.callproc('PKG_PROVEEDORES.FN_GET_ALL_PROVEEDORES_FOR_APEX', [ref_cursor])
         
         proveedores = []
         for row in ref_cursor.getvalue():
@@ -434,9 +439,9 @@ def api_directorio():
     try:
         cursor = conn.cursor()
         
-        # Usar package PKG_DIRECTORIO.OBTENER_TODOS
+        # Usar package PKG_DIRECTORIO.FN_GET_ALL_DIRECTORIOS_FOR_APEX
         ref_cursor = cursor.var(oracledb.CURSOR)
-        cursor.callproc('PKG_DIRECTORIO.OBTENER_TODOS', [ref_cursor])
+        cursor.callproc('PKG_DIRECTORIO.FN_GET_ALL_DIRECTORIOS_FOR_APEX', [ref_cursor])
         
         directorio = []
         for row in ref_cursor.getvalue():
@@ -471,9 +476,9 @@ def proveedores():
     try:
         cursor = conn.cursor()
         
-        # Usar package PKG_PROVEEDORES.OBTENER_TODOS
+        # Usar package PKG_PROVEEDORES.FN_GET_ALL_PROVEEDORES_FOR_APEX
         ref_cursor = cursor.var(oracledb.CURSOR)
-        cursor.callproc('PKG_PROVEEDORES.OBTENER_TODOS', [ref_cursor])
+        cursor.callproc('PKG_PROVEEDORES.FN_GET_ALL_PROVEEDORES_FOR_APEX', [ref_cursor])
         
         proveedores_data = []
         for row in ref_cursor.getvalue():
@@ -499,7 +504,7 @@ def proveedores():
 
 @app.route('/directorio')
 def directorio():
-    """Gestión del directorio usando PKG_DIRECTORIO"""
+    """Gestión de directorio de abastecimiento"""
     conn = get_db_connection()
     if not conn:
         flash('Error de conexión a la base de datos', 'error')
@@ -508,9 +513,9 @@ def directorio():
     try:
         cursor = conn.cursor()
         
-        # Usar package PKG_DIRECTORIO.OBTENER_TODOS
+        # Usar package PKG_DIRECTORIO.FN_GET_ALL_DIRECTORIOS_FOR_APEX
         ref_cursor = cursor.var(oracledb.CURSOR)
-        cursor.callproc('PKG_DIRECTORIO.OBTENER_TODOS', [ref_cursor])
+        cursor.callproc('PKG_DIRECTORIO.FN_GET_ALL_DIRECTORIOS_FOR_APEX', [ref_cursor])
         
         directorio_data = []
         for row in ref_cursor.getvalue():
@@ -705,7 +710,7 @@ def api_productos_proveedor(codigo):
 # Ruta de diagnóstico para verificar packages
 @app.route('/api/diagnostico/packages')
 def diagnostico_packages():
-    """Verificar estado y uso de packages PL/SQL"""
+    """Verifica si los paquetes PL/SQL principales existen en la base de datos"""
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Error de conexión'}), 500
@@ -713,52 +718,64 @@ def diagnostico_packages():
     try:
         cursor = conn.cursor()
         diagnostico = {
-            'packages_status': {},
-            'operations_using_packages': [],
-            'timestamp': datetime.now().isoformat()
+            'status': 'OK',
+            'checks': {}
         }
-        
-        # Verificar estado de packages
-        cursor.execute("""
-            SELECT object_name, object_type, status 
-            FROM user_objects 
-            WHERE object_type IN ('PACKAGE', 'PACKAGE BODY')
-            ORDER BY object_name, object_type
-        """)
-        
-        for row in cursor.fetchall():
-            package_name = row[0]
-            if package_name not in diagnostico['packages_status']:
-                diagnostico['packages_status'][package_name] = {}
-            diagnostico['packages_status'][package_name][row[1]] = row[2]
-        
+
+        test_cases = {
+            'PKG_PRODUCTOS.FN_GET_ALL_PRODUCTS_FOR_APEX': ('function',),
+            'PKG_PRODUCTOS.PR_INSERTAR_PRODUCTO': ('procedure',),
+            'PKG_PRODUCTOS.PR_ACTUALIZAR_PRODUCTO': ('procedure',),
+            'PKG_PRODUCTOS.PR_ELIMINAR_PRODUCTO': ('procedure',),
+            'PKG_PROVEEDORES.FN_GET_ALL_PROVEEDORES_FOR_APEX': ('function',),
+            'PKG_DIRECTORIO.FN_GET_ALL_DIRECTORIOS_FOR_APEX': ('function',)
+        }
+
+        for item, (item_type,) in test_cases.items():
+            try:
+                cursor.execute(f"""
+                    SELECT 1
+                    FROM ALL_PROCEDURES
+                    WHERE OWNER = 'LAURA'
+                      AND OBJECT_NAME = :pkg_name
+                      AND PROCEDURE_NAME = :proc_name
+                      AND OBJECT_TYPE = 'PACKAGE'
+                """, {'pkg_name': item.split('.')[0], 'proc_name': item.split('.')[1]})
+                
+                if cursor.fetchone():
+                    diagnostico['checks'][item] = '✅ Encontrado'
+                else:
+                    diagnostico['checks'][item] = '❌ No encontrado'
+            except Exception as e:
+                diagnostico['checks'][item] = f'⚠️ Error: {e}'
+
         # Listar operaciones que usan packages
         diagnostico['operations_using_packages'] = [
-            'productos() - PKG_PRODUCTOS.OBTENER_TODOS',
-            'api_productos() - PKG_PRODUCTOS.OBTENER_TODOS', 
-            'api_crear_producto() - PKG_PRODUCTOS.INSERTAR_PRODUCTO',
-            'api_actualizar_producto() - PKG_PRODUCTOS.ACTUALIZAR_STOCK',
-            'api_eliminar_producto() - PKG_PRODUCTOS.ELIMINAR',
-            'proveedores() - PKG_PROVEEDORES.OBTENER_TODOS',
-            'api_proveedores() - PKG_PROVEEDORES.OBTENER_TODOS',
-            'directorio() - PKG_DIRECTORIO.OBTENER_TODOS',
-            'api_directorio() - PKG_DIRECTORIO.OBTENER_TODOS'
+            'productos() - PKG_PRODUCTOS.FN_GET_ALL_PRODUCTS_FOR_APEX',
+            'api_productos() - PKG_PRODUCTOS.FN_GET_ALL_PRODUCTS_FOR_APEX', 
+            'api_crear_producto() - PKG_PRODUCTOS.PR_INSERTAR_PRODUCTO',
+            'api_actualizar_producto() - PKG_PRODUCTOS.PR_ACTUALIZAR_PRODUCTO',
+            'api_eliminar_producto() - PKG_PRODUCTOS.PR_ELIMINAR_PRODUCTO',
+            'proveedores() - PKG_PROVEEDORES.FN_GET_ALL_PROVEEDORES_FOR_APEX',
+            'api_proveedores() - PKG_PROVEEDORES.FN_GET_ALL_PROVEEDORES_FOR_APEX',
+            'directorio() - PKG_DIRECTORIO.FN_GET_ALL_DIRECTORIOS_FOR_APEX',
+            'api_directorio() - PKG_DIRECTORIO.FN_GET_ALL_DIRECTORIOS_FOR_APEX'
         ]
         
         # Probar una operación con package
         try:
             ref_cursor = cursor.var(oracledb.CURSOR)
-            cursor.callproc('PKG_PRODUCTOS.OBTENER_TODOS', [ref_cursor])
+            cursor.callproc('PKG_PRODUCTOS.FN_GET_ALL_PRODUCTS_FOR_APEX', [ref_cursor])
             productos_count = len(list(ref_cursor.getvalue()))
             diagnostico['test_pkg_productos'] = f'✅ PKG_PRODUCTOS funcional - {productos_count} productos'
         except Exception as e:
-            diagnostico['test_pkg_productos'] = f'❌ Error en PKG_PRODUCTOS: {str(e)}'
-        
+            diagnostico['test_pkg_productos'] = f'❌ Error en PKG_PRODUCTOS: {e}'
+
         cursor.close()
         conn.close()
-        
+
         return jsonify(diagnostico)
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
