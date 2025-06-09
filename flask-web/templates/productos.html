@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block title %}Productos - AlmacénRC{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-boxes"></i> Gestión de Productos</h1>
+    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addProductModal">
+        <i class="fas fa-plus"></i> Nuevo Producto
+    </button>
+</div>
+
+<!-- Filtros y búsqueda -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <input type="text" id="searchInput" class="form-control" placeholder="Buscar producto...">
+            </div>
+            <div class="col-md-3">
+                <select id="stockFilter" class="form-select">
+                    <option value="">Todos los stocks</option>
+                    <option value="CRITICO">Stock crítico</option>
+                    <option value="BAJO">Stock bajo</option>
+                    <option value="NORMAL">Stock normal</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-primary w-100" onclick="aplicarFiltros()">
+                    <i class="fas fa-filter"></i> Filtrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabla de productos -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Lista de Productos ({{ productos|length }} encontrados)</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="productosTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Stock</th>
+                        <th>Precio</th>
+                        <th>Vencimiento</th>
+                        <th>IVA</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for producto in productos %}
+                    <tr class="{{ producto.estado|lower }}-stock">
+                        <td>{{ producto.id }}</td>
+                        <td>{{ producto.nombre }}</td>
+                        <td>
+                            <span class="badge {% if producto.estado == 'CRITICO' %}bg-danger{% elif producto.estado == 'BAJO' %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                                {{ producto.stock }} unidades
+                            </span>
+                        </td>
+                        <td>${{ "{:,.0f}".format(producto.precio) }}</td>
+                        <td>{{ producto.vencimiento or 'N/A' }}</td>
+                        <td>{{ producto.iva }}%</td>
+                        <td>
+                            {% if producto.estado == 'CRITICO' %}
+                                <span class="badge bg-danger">CRÍTICO</span>
+                            {% elif producto.estado == 'BAJO' %}
+                                <span class="badge bg-warning text-dark">BAJO</span>
+                            {% else %}
+                                <span class="badge bg-success">NORMAL</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="editarProducto({{ producto.id }})">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-outline-info" onclick="verDetalles({{ producto.id }})">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn btn-outline-warning" onclick="ajustarStock({{ producto.id }})">
+                                    <i class="fas fa-warehouse"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para nuevo producto -->
+<div class="modal fade" id="addProductModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nuevo Producto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addProductForm">
+                    <div class="mb-3">
+                        <label class="form-label">ID Producto</label>
+                        <input type="number" class="form-control" name="id_producto" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nombre</label>
+                        <input type="text" class="form-control" name="nombre" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Stock Inicial</label>
+                        <input type="number" class="form-control" name="stock" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Precio Unitario</label>
+                        <input type="number" class="form-control" name="valor_unitario" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Fecha Vencimiento</label>
+                        <input type="date" class="form-control" name="fecha_venc">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">IVA (%)</label>
+                        <select class="form-select" name="iva" required>
+                            <option value="0">0%</option>
+                            <option value="19" selected>19%</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="guardarProducto()">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resumen por estado -->
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card text-white bg-danger">
+            <div class="card-body">
+                <h5>Stock Crítico</h5>
+                <h3>{{ productos | selectattr('estado', 'equalto', 'CRITICO') | list | length }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-dark bg-warning">
+            <div class="card-body">
+                <h5>Stock Bajo</h5>
+                <h3>{{ productos | selectattr('estado', 'equalto', 'BAJO') | list | length }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h5>Stock Normal</h5>
+                <h3>{{ productos | selectattr('estado', 'equalto', 'NORMAL') | list | length }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function aplicarFiltros() {
+    const searchText = document.getElementById('searchInput').value.toLowerCase();
+    const stockFilter = document.getElementById('stockFilter').value;
+    const table = document.getElementById('productosTable');
+    const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+    
+    for (let row of rows) {
+        const nombre = row.cells[1].textContent.toLowerCase();
+        const estado = row.classList.contains('critico-stock') ? 'CRITICO' : 
+                      row.classList.contains('bajo-stock') ? 'BAJO' : 'NORMAL';
+        
+        const matchSearch = nombre.includes(searchText);
+        const matchFilter = !stockFilter || estado === stockFilter;
+        
+        row.style.display = (matchSearch && matchFilter) ? '' : 'none';
+    }
+}
+
+function editarProducto(id) {
+    fetch(`/api/productos/${id}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.data) {
+                const producto = data.data;
+                const detalles = `PRODUCTO ID: ${id}\n\nNombre actual: ${producto.nombre}\nStock: ${producto.stock}\nPrecio: $${producto.valor_unitario}\nVencimiento: ${producto.fecha_venc || 'N/A'}\n\n¿Desea editarlo?`;
+                if (confirm(detalles)) {
+                    const nuevoNombre = prompt('Nuevo nombre:', producto.nombre);
+                    if (nuevoNombre && nuevoNombre !== producto.nombre) {
+                        alert('✅ Funcionalidad de edición en desarrollo\nNuevo nombre sería: ' + nuevoNombre);
+                    }
+                }
+            }
+        })
+        .catch(() => alert('❌ Error al obtener datos del producto'));
+}
+
+function verDetalles(id) {
+    fetch(`/api/productos/${id}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.data) {
+                const p = data.data;
+                const detalles = `
+📦 DETALLES DEL PRODUCTO
+
+🆔 ID: ${p.id_producto}
+📝 Nombre: ${p.nombre}
+📊 Stock: ${p.stock} unidades
+💰 Precio: $${p.valor_unitario.toLocaleString()}
+📅 Vencimiento: ${p.fecha_venc || 'No especificado'}
+🧾 IVA: ${p.iva}%
+⚠️ Estado: ${p.estado_stock}
+
+${p.estado_stock === 'CRITICO' ? '🚨 ¡ATENCIÓN! Stock crítico' : ''}
+                `;
+                alert(detalles);
+            }
+        })
+        .catch(() => alert('❌ Error al obtener detalles'));
+}
+
+function ajustarStock(id) {
+    const nuevoStock = prompt('📦 Ingrese el nuevo stock para el producto ID ' + id + ':');
+    if (nuevoStock !== null && !isNaN(nuevoStock) && nuevoStock >= 0) {
+        // FUNCIONALIDAD REAL - actualizar via API
+        fetch(`/api/productos/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stock: parseInt(nuevoStock) })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`✅ Stock actualizado exitosamente!\n\nProducto ID: ${id}\nNuevo stock: ${nuevoStock} unidades`);
+                location.reload(); // Recargar para mostrar cambios
+            } else {
+                alert('❌ Error al actualizar: ' + (data.error || 'Error desconocido'));
+            }
+        })
+        .catch(error => {
+            alert('❌ Error de conexión: ' + error.message);
+        });
+    } else if (nuevoStock !== null) {
+        alert('❌ Por favor ingrese un número válido mayor o igual a 0');
+    }
+}
+
+function guardarProducto() {
+    const form = document.getElementById('addProductForm');
+    const formData = new FormData(form);
+    
+    const producto = {
+        id_producto: parseInt(formData.get('id_producto')),
+        id_marca: 1, // Marca por defecto
+        nombre: formData.get('nombre'),
+        stock: parseInt(formData.get('stock')),
+        valor_unitario: parseFloat(formData.get('valor_unitario')),
+        fecha_venc: formData.get('fecha_venc') || null,
+        iva: parseInt(formData.get('iva'))
+    };
+    
+    // Validación básica
+    if (!producto.id_producto || !producto.nombre || producto.stock === null || !producto.valor_unitario) {
+        alert('❌ Por favor complete todos los campos obligatorios');
+        return;
+    }
+    
+    // FUNCIONALIDAD REAL - crear via API
+    fetch('/api/productos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(producto)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`✅ Producto creado exitosamente!\n\n📦 ${producto.nombre}\n🆔 ID: ${producto.id_producto}\n📊 Stock: ${producto.stock}\n💰 Precio: $${producto.valor_unitario}\n📅 Vencimiento: ${producto.fecha_venc || 'No especificado'}`);
+            
+            // Cerrar modal y limpiar formulario
+            const modal = bootstrap.Modal.getInstance(document.getElementById('addProductModal'));
+            modal.hide();
+            form.reset();
+            
+            // Recargar página para mostrar el nuevo producto
+            location.reload();
+        } else {
+            alert('❌ Error al crear producto: ' + (data.error || 'Error desconocido'));
+        }
+    })
+    .catch(error => {
+        alert('❌ Error de conexión: ' + error.message);
+    });
+}
+
+// Búsqueda en tiempo real
+document.getElementById('searchInput').addEventListener('input', aplicarFiltros);
+document.getElementById('stockFilter').addEventListener('change', aplicarFiltros);
+</script>
+{% endblock %} 

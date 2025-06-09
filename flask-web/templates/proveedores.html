@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Proveedores - AlmacénRC{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-truck"></i> Gestión de Proveedores</h1>
+    <button class="btn btn-success" onclick="nuevoProveedor()">
+        <i class="fas fa-plus"></i> Nuevo Proveedor
+    </button>
+</div>
+
+<div class="row">
+    {% for proveedor in proveedores %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">{{ proveedor.nombre }}</h5>
+                <small>Código: {{ proveedor.codigo }}</small>
+            </div>
+            <div class="card-body">
+                <p><i class="fas fa-phone"></i> <strong>Teléfono:</strong> {{ proveedor.telefono }}</p>
+                <p><i class="fas fa-box"></i> <strong>Productos:</strong> {{ proveedor.productos_count }} items</p>
+            </div>
+            <div class="card-footer">
+                <div class="btn-group w-100">
+                    <button class="btn btn-outline-primary btn-sm" onclick="editarProveedor('{{ proveedor.codigo }}', '{{ proveedor.nombre }}', '{{ proveedor.telefono }}')">
+                        <i class="fas fa-edit"></i> Editar
+                    </button>
+                    <button class="btn btn-outline-info btn-sm" onclick="verProductosProveedor('{{ proveedor.codigo }}', '{{ proveedor.nombre }}')">
+                        <i class="fas fa-boxes"></i> Productos
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function editarProveedor(codigo, nombre, telefono) {
+    const nuevoNombre = prompt(`✏️ EDITAR PROVEEDOR\n\nCódigo: ${codigo}\nNombre actual: ${nombre}\n\nIngrese el nuevo nombre:`, nombre);
+    const nuevoTelefono = prompt(`📞 Ingrese el nuevo teléfono:`, telefono);
+    
+    if (nuevoNombre && nuevoTelefono && (nuevoNombre !== nombre || nuevoTelefono !== telefono)) {
+        // Llamar a la API PUT para actualizar el proveedor usando PKG_PROVEEDORES.PR_ACTUALIZAR_PROVEEDOR
+        fetch(`/api/proveedores/${codigo}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                nombre: nuevoNombre,
+                telefono: nuevoTelefono
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`✅ Proveedor actualizado exitosamente!\n\n🆔 Código: ${codigo}\n🏢 Nombre: ${nuevoNombre}\n📞 Teléfono: ${nuevoTelefono}`);
+                // Recargar la página para mostrar los cambios
+                location.reload();
+            } else {
+                alert('❌ Error al actualizar proveedor: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('❌ Error de conexión: ' + error.message);
+        });
+    }
+}
+
+function nuevoProveedor() {
+    const codigo = prompt('🆔 Ingrese el código del proveedor:');
+    const nombre = prompt('🏢 Ingrese el nombre del proveedor:');
+    const telefono = prompt('📞 Ingrese el teléfono:');
+    
+    if (codigo && nombre && telefono && !isNaN(codigo)) {
+        fetch('/api/proveedores', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                codigo: parseInt(codigo),
+                nombre: nombre,
+                telefono: parseInt(telefono)
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`✅ Proveedor creado exitosamente!\n\n🏢 ${nombre}\n🆔 Código: ${codigo}\n📞 Teléfono: ${telefono}`);
+                location.reload();
+            } else {
+                alert('❌ Error al crear proveedor: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('❌ Error de conexión: ' + error.message);
+        });
+    } else if (codigo !== null) {
+        alert('❌ Por favor complete todos los campos correctamente');
+    }
+}
+
+function verProductosProveedor(codigo, nombre) {
+    fetch(`/api/proveedores/${codigo}/productos`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (data.data.length === 0) {
+                    alert(`📦 PRODUCTOS DEL PROVEEDOR\n\n🏢 ${nombre} (Código: ${codigo})\n\n❌ No tiene productos asignados`);
+                } else {
+                    let productosTexto = `📦 PRODUCTOS DEL PROVEEDOR\n\n🏢 ${nombre} (Código: ${codigo})\n📊 Total: ${data.total} productos\n\n`;
+                    
+                    data.data.forEach(p => {
+                        const estado = p.estado_stock === 'CRITICO' ? '🚨' : p.estado_stock === 'BAJO' ? '⚠️' : '✅';
+                        productosTexto += `${estado} ${p.nombre} (ID: ${p.id_producto})\n   📊 Stock: ${p.stock} | 💰 $${p.valor_unitario.toLocaleString()}\n\n`;
+                    });
+                    
+                    productosTexto += `\n🚨 = Crítico | ⚠️ = Bajo | ✅ = Normal`;
+                    alert(productosTexto);
+                }
+            } else {
+                alert('❌ Error al obtener productos: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('❌ Error de conexión: ' + error.message);
+        });
+}
+</script>
+{% endblock %} 

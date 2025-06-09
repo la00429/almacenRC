@@ -31,6 +31,22 @@ services:
       retries: 10
       start_period: 10m
 
+  flask-web:
+    build:
+      context: ./flask-web
+      dockerfile: Dockerfile
+    container_name: flask-web
+    ports:
+      - "5000:5000"
+    depends_on:
+      - oracledb
+    environment:
+      - ORACLE_HOST=oracledb
+      - ORACLE_PORT=1521
+      - ORACLE_USER=laura
+      - ORACLE_PASSWORD=Laura2004
+      - ORACLE_DATABASE=XEPDB1
+
 volumes:
   oracle_data:
     driver: local

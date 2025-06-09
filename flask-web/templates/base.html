@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AlmacénRC - Sistema de Inventario{% endblock %}</title>
+    
+    <!-- Favicon personalizado para AlmacénRC -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNCIgZmlsbD0iIzJkMzc0OCIvPgo8cGF0aCBkPSJNNiA5aDIwdjE0SDZ6IiBmaWxsPSIjZmY2YjM1Ii8+CjxwYXRoIGQ9Ik04IDEyaDRWMjBIOHptNiAwaDRWMjBoLTR6bTYgMGg0VjIwaC00eiIgZmlsbD0iIzJkMzc0OCIvPgo8cGF0aCBkPSJNMTAgMTRoMnYyaC0yem00IDBoMnYyaC0yem00IDBoMnYyaC0yeiIgZmlsbD0iI2ZmNmIzNSIvPgo8L3N2Zz4K">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNCIgZmlsbD0iIzJkMzc0OCIvPgo8cGF0aCBkPSJNNiA5aDIwdjE0SDZ6IiBmaWxsPSIjZmY2YjM1Ii8+CjxwYXRoIGQ9Ik04IDEyaDRWMjBIOHptNiAwaDRWMjBoLTR6bTYgMGg0VjIwaC00eiIgZmlsbD0iIzJkMzc0OCIvPgo8cGF0aCBkPSJNMTAgMTRoMnYyaC0yem00IDBoMnYyaC0yem00IDBoMnYyaC0yeiIgZmlsbD0iI2ZmNmIzNSIvPgo8L3N2Zz4K">
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .navbar-brand {
+            font-weight: bold;
+            color: #ff6b35 !important;
+        }
+        .card {
+            border: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+        }
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .critical-stock {
+            background-color: #fff5f5;
+            border-left: 4px solid #e53e3e;
+        }
+        .low-stock {
+            background-color: #fffbeb;
+            border-left: 4px solid #d69e2e;
+        }
+        .normal-stock {
+            background-color: #f0fff4;
+            border-left: 4px solid #38a169;
+        }
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(180deg, #2d3748 0%, #4a5568 100%);
+        }
+        .sidebar a {
+            color: #e2e8f0;
+            text-decoration: none;
+            padding: 15px 20px;
+            display: block;
+            border-bottom: 1px solid #4a5568;
+            transition: all 0.3s;
+        }
+        .sidebar a:hover {
+            background-color: #4a5568;
+            color: #ff6b35;
+        }
+        .sidebar a.active {
+            background-color: #ff6b35;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
+                <i class="fas fa-warehouse"></i> AlmacénRC
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text">
+                    <i class="fas fa-user"></i> Usuario: LAURA
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-2 p-0">
+                <div class="sidebar">
+                    <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">
+                        <i class="fas fa-chart-line"></i> Dashboard
+                    </a>
+                    <a href="{{ url_for('productos') }}" class="{% if request.endpoint == 'productos' %}active{% endif %}">
+                        <i class="fas fa-box"></i> Productos
+                    </a>
+                    <a href="{{ url_for('proveedores') }}" class="{% if request.endpoint == 'proveedores' %}active{% endif %}">
+                        <i class="fas fa-truck"></i> Proveedores
+                    </a>
+                    <a href="{{ url_for('directorio') }}" class="{% if request.endpoint == 'directorio' %}active{% endif %}">
+                        <i class="fas fa-link"></i> Directorio
+                    </a>
+                    <a href="{{ url_for('proceso_abastecimiento') }}" class="{% if request.endpoint == 'proceso_abastecimiento' %}active{% endif %}">
+                        <i class="fas fa-shopping-cart"></i> Abastecimiento
+                    </a>
+                </div>
+            </div>
+            <div class="col-md-10">
+                <div class="container-fluid py-4">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    {% block content %}{% endblock %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html> 

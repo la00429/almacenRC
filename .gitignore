@@ -1,0 +1,45 @@
+# Archivos temporales
+*.tmp
+*.log
+check_tables.sql
+
+# Volúmenes Docker
+volumes/
+
+# Archivos de entorno
+.env
+.env.local
+
+# Cache de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Docker
+.dockerignore
+
+# Archivos de backup
+*.bak
+*.backup
+
+# Archivos temporales del sistema
+*~ 

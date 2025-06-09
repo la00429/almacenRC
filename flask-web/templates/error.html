@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Error - AlmacénRC{% endblock %}
+
+{% block content %}
+<div class="text-center py-5">
+    <i class="fas fa-exclamation-triangle fa-5x text-warning mb-4"></i>
+    <h1 class="display-4">Oops! Algo salió mal</h1>
+    <p class="lead">Ha ocurrido un error en el sistema.</p>
+    <p class="text-muted">Por favor, verifica la conexión a la base de datos y vuelve a intentarlo.</p>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+        <i class="fas fa-home"></i> Volver al Dashboard
+    </a>
+</div>
+{% endblock %} 

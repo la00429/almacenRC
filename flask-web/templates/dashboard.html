@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AlmacénRC{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-chart-line"></i> Dashboard de Inventario</h1>
+    <span class="badge bg-primary">Tiempo real</span>
+</div>
+
+<!-- Métricas principales -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card metric-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle mb-2">Total Productos</h6>
+                        <h2 class="card-title mb-0">{{ metrics.total_productos }}</h2>
+                    </div>
+                    <i class="fas fa-boxes fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card metric-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle mb-2">Stock Crítico</h6>
+                        <h2 class="card-title mb-0">{{ metrics.productos_stock_bajo }}</h2>
+                    </div>
+                    <i class="fas fa-exclamation-triangle fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card metric-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle mb-2">Proveedores</h6>
+                        <h2 class="card-title mb-0">{{ metrics.total_proveedores }}</h2>
+                    </div>
+                    <i class="fas fa-truck fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card metric-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle mb-2">Valor Inventario</h6>
+                        <h2 class="card-title mb-0">${{ "{:,.0f}".format(metrics.valor_inventario) }}</h2>
+                    </div>
+                    <i class="fas fa-dollar-sign fa-2x opacity-75"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Productos con stock crítico -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    Productos con Stock Crítico (menos de 10 unidades)
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if metrics.productos_criticos %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Producto</th>
+                                    <th>Stock</th>
+                                    <th>Valor Unitario</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for producto in metrics.productos_criticos %}
+                                <tr class="{% if producto[2] < 5 %}table-danger{% elif producto[2] < 10 %}table-warning{% endif %}">
+                                    <td>{{ producto[0] }}</td>
+                                    <td>{{ producto[1] }}</td>
+                                    <td>
+                                        <span class="badge {% if producto[2] < 5 %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                                            {{ producto[2] }} unidades
+                                        </span>
+                                    </td>
+                                    <td>${{ "{:,.0f}".format(producto[3]) }}</td>
+                                    <td>
+                                        {% if producto[2] < 5 %}
+                                            <span class="badge bg-danger">CRÍTICO</span>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark">BAJO</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                        <h4 class="text-success">¡Excelente!</h4>
+                        <p class="text-muted">No hay productos con stock crítico en este momento.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Acciones rápidas -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-rocket"></i> Acciones Rápidas</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <a href="{{ url_for('productos') }}" class="btn btn-primary w-100">
+                            <i class="fas fa-boxes"></i> Gestionar Productos
+                        </a>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <a href="{{ url_for('proveedores') }}" class="btn btn-info w-100">
+                            <i class="fas fa-truck"></i> Gestionar Proveedores
+                        </a>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <a href="{{ url_for('directorio') }}" class="btn btn-success w-100">
+                            <i class="fas fa-link"></i> Ver Directorio
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Auto-refresh cada 30 segundos
+    setTimeout(function() {
+        location.reload();
+    }, 30000);
+</script>
+{% endblock %} 
