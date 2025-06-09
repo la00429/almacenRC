@@ -13,7 +13,7 @@ check_oracle_ready() {
     local attempt=1
     
     while [ $attempt -le $max_attempts ]; do
-        if docker exec oracledb bash -c "echo 'SELECT 1 FROM DUAL;' | sqlplus -s sys/oracle@localhost:1522/xepdb1 as sysdba 2>/dev/null" | grep -q "1" 2>/dev/null; then
+        if docker exec oracledb bash -c "echo 'SELECT 1 FROM DUAL;' | sqlplus -s sys/oracle@localhost:1521/xepdb1 as sysdba 2>/dev/null" | grep -q "1" 2>/dev/null; then
             return 0
         fi
         attempt=$((attempt + 1))
@@ -43,7 +43,7 @@ check_oracle_status() {
         # Verificar usuario laura
         echo "👤 Verificando usuario LAURA..."
         local user_check_output
-        user_check_output=$(docker exec oracledb bash -c "echo 'SELECT USER FROM DUAL;' | sqlplus -s laura/Laura2004@localhost:1522/xepdb1 2>&1")
+        user_check_output=$(docker exec oracledb bash -c "echo 'SELECT USER FROM DUAL;' | sqlplus -s laura/Laura2004@localhost:1521/xepdb1 2>&1")
         
         if [[ "$user_check_output" =~ "LAURA" && ! "$user_check_output" =~ (ORA-|ERROR|TNS:|SP2-) ]]; then
             echo "✅ Usuario LAURA OK"
@@ -51,7 +51,7 @@ check_oracle_status() {
             # Verificar tablas básicas
             echo "🗄️ Verificando tablas..."
             local table_count_output
-            table_count_output=$(docker exec oracledb bash -c "echo 'SELECT COUNT(*) FROM user_tables;' | sqlplus -s laura/Laura2004@localhost:1522/xepdb1 2>&1")
+            table_count_output=$(docker exec oracledb bash -c "echo 'SELECT COUNT(*) FROM user_tables;' | sqlplus -s laura/Laura2004@localhost:1521/xepdb1 2>&1")
             
             if [[ ! "$table_count_output" =~ (ORA-|ERROR|TNS:|SP2-) ]]; then
                 local table_count
@@ -64,7 +64,7 @@ check_oracle_status() {
                     # Verificar paquetes PL/SQL
                     echo "📦 Verificando paquetes PL/SQL..."
                     local package_count_output
-                    package_count_output=$(docker exec oracledb bash -c "echo 'SELECT COUNT(*) FROM user_objects WHERE object_type IN ('"'"'PACKAGE'"'"', '"'"'PACKAGE BODY'"'"', '"'"'TYPE'"'"');' | sqlplus -s laura/Laura2004@localhost:1522/xepdb1 2>&1")
+                    package_count_output=$(docker exec oracledb bash -c "echo 'SELECT COUNT(*) FROM user_objects WHERE object_type IN ('"'"'PACKAGE'"'"', '"'"'PACKAGE BODY'"'"', '"'"'TYPE'"'"');' | sqlplus -s laura/Laura2004@localhost:1521/xepdb1 2>&1")
                     
                     if [[ ! "$package_count_output" =~ (ORA-|ERROR|TNS:|SP2-) ]]; then
                         local package_count
@@ -190,7 +190,7 @@ setup_database() {
     
     # Ejecutar comando y capturar salida
     local create_user_output
-    create_user_output=$(docker exec oracledb sqlplus -s sys/oracle@localhost:1522/xepdb1 as sysdba @/opt/oracle/scripts/manual/scripts/ccuser.sql 2>&1)
+    create_user_output=$(docker exec oracledb bash -c "cd /opt/oracle/scripts/manual/scripts && sqlplus -s sys/oracle@localhost:1521/xepdb1 as sysdba @ccuser.sql" 2>&1)
     local create_user_exit_code=$?
     
     # Verificar si hay errores SQL
@@ -203,7 +203,7 @@ setup_database() {
     # Verificar que el usuario fue creado exitosamente
     echo "🔍 Verificando creación del usuario LAURA..."
     local user_check_output
-    user_check_output=$(docker exec oracledb bash -c "echo 'SELECT USER FROM DUAL;' | sqlplus -s laura/Laura2004@localhost:1522/xepdb1 2>&1")
+    user_check_output=$(docker exec oracledb bash -c "echo 'SELECT USER FROM DUAL;' | sqlplus -s laura/Laura2004@localhost:1521/xepdb1 2>&1")
     
     if [[ "$user_check_output" =~ "LAURA" && ! "$user_check_output" =~ (ORA-|ERROR|TNS:|SP2-) ]]; then
         echo "✅ Usuario LAURA creado y verificado"
@@ -220,7 +220,7 @@ setup_database() {
     echo "🏗️ Creando tablas básicas..."
     
     local create_tables_output
-    create_tables_output=$(docker exec oracledb bash -c "cd /opt/oracle/scripts/manual/scripts && sqlplus -s laura/Laura2004@localhost:1522/xepdb1 @_crebas.sql" 2>&1)
+    create_tables_output=$(docker exec oracledb bash -c "cd /opt/oracle/scripts/manual/scripts && sqlplus -s laura/Laura2004@localhost:1521/xepdb1 @_crebas.sql" 2>&1)
     local create_tables_exit_code=$?
     
     # Verificar si hay errores SQL
@@ -233,7 +233,7 @@ setup_database() {
     # Verificar que las tablas fueron creadas
     echo "🔍 Verificando creación de tablas..."
     local table_count_output
-    table_count_output=$(docker exec oracledb bash -c "echo 'SELECT COUNT(*) FROM user_tables;' | sqlplus -s laura/Laura2004@localhost:1522/xepdb1 2>&1")
+    table_count_output=$(docker exec oracledb bash -c "echo 'SELECT COUNT(*) FROM user_tables;' | sqlplus -s laura/Laura2004@localhost:1521/xepdb1 2>&1")
     
     if [[ "$table_count_output" =~ (ORA-|ERROR|TNS:|SP2-) ]]; then
         echo "❌ Error verificando tablas:"
@@ -249,7 +249,7 @@ setup_database() {
         
         # Mostrar lista de tablas creadas
         echo "📋 Tablas creadas:"
-        docker exec oracledb bash -c "echo 'SELECT table_name FROM user_tables ORDER BY table_name;' | sqlplus -s laura/Laura2004@localhost:1522/xepdb1" 2>/dev/null | grep -v "^$" | head -10
+        docker exec oracledb bash -c "echo 'SELECT table_name FROM user_tables ORDER BY table_name;' | sqlplus -s laura/Laura2004@localhost:1521/xepdb1" 2>/dev/null | grep -v "^$" | head -10
     else
         echo "❌ No se crearon tablas correctamente"
         echo "Salida del comando de creación:"
@@ -275,7 +275,7 @@ install_packages() {
     # Verificar que el usuario LAURA existe
     echo "🔍 Verificando usuario LAURA..."
     local user_check_output
-    user_check_output=$(docker exec oracledb bash -c "echo 'SELECT USER FROM DUAL;' | sqlplus -s laura/Laura2004@localhost:1522/xepdb1 2>&1")
+    user_check_output=$(docker exec oracledb bash -c "echo 'SELECT USER FROM DUAL;' | sqlplus -s laura/Laura2004@localhost:1521/xepdb1 2>&1")
     
     if [[ ! "$user_check_output" =~ "LAURA" || "$user_check_output" =~ (ORA-|ERROR|TNS:|SP2-) ]]; then
         echo "❌ Usuario LAURA no está disponible:"
@@ -287,7 +287,7 @@ install_packages() {
     # Ejecutar tipos de objetos con verificación robusta
     echo "🔧 Instalando tipos de objetos..."
     local types_output
-    types_output=$(docker exec oracledb bash -c "cd /opt/oracle/scripts/manual && sqlplus -s laura/Laura2004@localhost:1522/xepdb1 @packages/01_object_types.sql" 2>&1)
+    types_output=$(docker exec oracledb bash -c "cd /opt/oracle/scripts/manual && sqlplus -s laura/Laura2004@localhost:1521/xepdb1 @packages/01_object_types.sql" 2>&1)
     local types_exit_code=$?
     
     if [[ $types_exit_code -ne 0 || "$types_output" =~ (ORA-|ERROR|TNS:|SP2-|PLS-) ]]; then
@@ -300,7 +300,7 @@ install_packages() {
     # Ejecutar paquetes con verificación robusta
     echo "📚 Instalando paquetes..."
     local packages_output
-    packages_output=$(docker exec oracledb bash -c "cd /opt/oracle/scripts/manual && sqlplus -s laura/Laura2004@localhost:1522/xepdb1 @packages/02_packages.sql" 2>&1)
+    packages_output=$(docker exec oracledb bash -c "cd /opt/oracle/scripts/manual && sqlplus -s laura/Laura2004@localhost:1521/xepdb1 @packages/02_packages.sql" 2>&1)
     local packages_exit_code=$?
     
     if [[ $packages_exit_code -ne 0 || "$packages_output" =~ (ORA-|ERROR|TNS:|SP2-|PLS-) ]]; then
@@ -313,7 +313,7 @@ install_packages() {
     # Verificar instalación de paquetes
     echo "🔍 Verificando paquetes instalados..."
     local package_check_output
-    package_check_output=$(docker exec oracledb bash -c "echo 'SELECT COUNT(*) FROM user_objects WHERE object_type IN ('"'"'PACKAGE'"'"', '"'"'PACKAGE BODY'"'"', '"'"'TYPE'"'"');' | sqlplus -s laura/Laura2004@localhost:1522/xepdb1 2>&1")
+    package_check_output=$(docker exec oracledb bash -c "echo 'SELECT COUNT(*) FROM user_objects WHERE object_type IN ('"'"'PACKAGE'"'"', '"'"'PACKAGE BODY'"'"', '"'"'TYPE'"'"');' | sqlplus -s laura/Laura2004@localhost:1521/xepdb1 2>&1")
     
     if [[ ! "$package_check_output" =~ (ORA-|ERROR|TNS:|SP2-) ]]; then
         local object_count
@@ -404,7 +404,7 @@ EOF
     
     echo "🔧 Ejecutando configuración de APEX..."
     local apex_output
-    apex_output=$(docker exec oracledb sqlplus -s sys/oracle@localhost:1522/xepdb1 as sysdba @/tmp/apex_config.sql 2>&1)
+    apex_output=$(docker exec oracledb sqlplus -s sys/oracle@localhost:1521/xepdb1 as sysdba @/tmp/apex_config.sql 2>&1)
     local apex_exit_code=$?
     
     # Verificar si hay errores
@@ -422,7 +422,7 @@ EOF
     # Verificar puerto HTTP
     echo "🔍 Verificando puerto HTTP 8080..."
     local port_check_output
-    port_check_output=$(docker exec oracledb bash -c "echo 'SELECT DBMS_XDB.getHttpPort() FROM DUAL;' | sqlplus -s sys/oracle@localhost:1522/xepdb1 as sysdba 2>&1")
+    port_check_output=$(docker exec oracledb bash -c "echo 'SELECT DBMS_XDB.getHttpPort() FROM DUAL;' | sqlplus -s sys/oracle@localhost:1521/xepdb1 as sysdba 2>&1")
     
     if [[ ! "$port_check_output" =~ (ORA-|ERROR|TNS:|SP2-) ]]; then
         echo "✅ Verificación de puerto completada"
@@ -453,7 +453,7 @@ run_tests() {
         docker cp db_scripts/scripts/run_all_tests.sql oracledb:/tmp/
         
         # Ejecutar pruebas
-        if docker exec oracledb sqlplus laura/Laura2004@localhost:1522/xepdb1 @/tmp/run_all_tests.sql; then
+        if docker exec oracledb sqlplus laura/Laura2004@localhost:1521/xepdb1 @/tmp/run_all_tests.sql; then
             echo "✅ Pruebas ejecutadas correctamente"
         else
             echo "❌ Error ejecutando pruebas"
@@ -478,7 +478,7 @@ show_logs() {
 connect_oracle() {
     echo "🔌 Conectando a Oracle como usuario LAURA..."
     if check_oracle_ready; then
-        docker exec -it oracledb sqlplus laura/Laura2004@localhost:1522/xepdb1
+        docker exec -it oracledb sqlplus laura/Laura2004@localhost:1521/xepdb1
     else
         echo "❌ Oracle no está listo para conexiones"
         return 1
@@ -581,7 +581,7 @@ full_setup() {
     echo ""
     echo "🎉 ¡Configuración completa de AlmacenRC finalizada!"
     echo "🌐 APEX: http://localhost:8080/apex"
-    echo "🔗 Oracle: localhost:1522/xepdb1"
+    echo "🔗 Oracle: localhost:1522/xepdb1 (externo), localhost:1521/xepdb1 (interno)"
     echo "👤 Usuario: laura/Laura2004"
 }
 
