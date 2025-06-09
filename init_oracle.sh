@@ -24,7 +24,7 @@ check_oracle_ready() {
 
 # Función para mostrar el estado de Oracle
 check_oracle_status() {
-    echo "�� Verificando estado completo de Oracle..."
+    echo "🔍 Verificando estado completo de Oracle..."
     
     # Verificar si el contenedor está corriendo
     if ! docker ps | grep -q "oracledb"; then
@@ -64,7 +64,7 @@ check_oracle_status() {
                     # Verificar paquetes PL/SQL
                     echo "📦 Verificando paquetes PL/SQL..."
                     local package_count_output
-                    package_count_output=$(docker exec oracledb bash -c "echo 'SELECT COUNT(*) FROM user_objects WHERE object_type IN ('"'"'PACKAGE'"'"', '"'"'PACKAGE BODY'"'"', '"'"'TYPE'"'"');' | sqlplus -s laura/Laura2004@localhost:1521/xepdb1 2>&1")
+                    package_count_output=$(docker exec oracledb bash -c "echo \"SELECT COUNT(*) FROM user_objects WHERE object_type IN ('PACKAGE', 'PACKAGE BODY', 'TYPE');\" | sqlplus -s laura/Laura2004@localhost:1521/xepdb1 2>&1")
                     
                     if [[ ! "$package_count_output" =~ (ORA-|ERROR|TNS:|SP2-) ]]; then
                         local package_count
@@ -313,7 +313,7 @@ install_packages() {
     # Verificar instalación de paquetes
     echo "🔍 Verificando paquetes instalados..."
     local package_check_output
-    package_check_output=$(docker exec oracledb bash -c "echo 'SELECT COUNT(*) FROM user_objects WHERE object_type IN ('"'"'PACKAGE'"'"', '"'"'PACKAGE BODY'"'"', '"'"'TYPE'"'"');' | sqlplus -s laura/Laura2004@localhost:1521/xepdb1 2>&1")
+    package_check_output=$(docker exec oracledb bash -c "echo \"SELECT COUNT(*) FROM user_objects WHERE object_type IN ('PACKAGE', 'PACKAGE BODY', 'TYPE');\" | sqlplus -s laura/Laura2004@localhost:1521/xepdb1 2>&1")
     
     if [[ ! "$package_check_output" =~ (ORA-|ERROR|TNS:|SP2-) ]]; then
         local object_count
