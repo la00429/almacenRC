@@ -30,4 +30,6 @@ GRANT CREATE TRIGGER TO laura;
 
 -- Confirmar cambios
 COMMIT;
-EXIT;
+
+-- Mostrar confirmación
+SELECT 'Usuario LAURA configurado correctamente' FROM DUAL;

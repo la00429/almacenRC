@@ -1,0 +1,7 @@
+FROM container-registry.oracle.com/database/express:21.3.0-xe
+
+# Solo variables básicas
+ENV ORACLE_PWD=oracle
+
+# Probar solo con el script de usuario
+COPY db_scripts/scripts/ccuser.sql /opt/oracle/scripts/setup/01_create_user.sql

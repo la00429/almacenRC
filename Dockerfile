@@ -1,17 +1,18 @@
 FROM container-registry.oracle.com/database/express:21.3.0-xe
 
-# Establecer variables de entorno
-ENV APP_USER=laura
-ENV APP_USER_PWD=Laura2004
+# Variables de entorno para Oracle XE
 ENV ORACLE_PWD=oracle
+ENV ORACLE_DATABASE=XEPDB1
+ENV ORACLE_CHARACTERSET=AL32UTF8
 
-# SOLO copiar el script de usuario corregido
-COPY db_scripts/scripts/ccuser.sql /opt/oracle/scripts/startup/01_create_user.sql
+# Solo copiamos los scripts, sin ejecutar nada automáticamente
+USER root
+RUN mkdir -p /opt/oracle/scripts/manual
+COPY db_scripts/ /opt/oracle/scripts/manual/
 
-# Copiar TODOS los scripts directamente al directorio startup (mismo nivel)
-COPY db_scripts/scripts/ /opt/oracle/scripts/startup/
+# Establecer permisos
+RUN chmod -R 755 /opt/oracle/scripts/
+RUN chown -R oracle:dba /opt/oracle/scripts/
 
-# Asegurar que el wrapper se ejecute como segundo paso
-COPY db_scripts/scripts/wrapper_crebas.sql /opt/oracle/scripts/startup/02_create_schema.sql
-
-# El wrapper ahora puede encontrar _crebas.sql en el mismo directorio
+# Volver al usuario oracle
+USER oracle
