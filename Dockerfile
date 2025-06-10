@@ -18,12 +18,11 @@ RUN mkdir -p /opt/oracle/scripts/setup/scripts \
     && chown -R oracle:oinstall /opt/oracle/scripts \
     && chown -R oracle:oinstall /var/log/oracle_setup
 
-# Copiar script de configuración (comentado - archivo no existe)
-# COPY setup_schema.sh /opt/oracle/scripts/startup/01_setup_schema.sh
 
-# Hacer el script ejecutable y asignar permisos (comentado)
-# RUN chmod +x /opt/oracle/scripts/startup/01_setup_schema.sh \
-#     && chown oracle:oinstall /opt/oracle/scripts/startup/01_setup_schema.sh
+COPY init_oracle.sh /opt/oracle/scripts/startup/init_oracle.sh
+
+RUN chmod +x /opt/oracle/scripts/startup/init_oracle.sh \
+    && chown oracle:oinstall /opt/oracle/scripts/startup/init_oracle.sh
 
 # Volver al usuario oracle
 USER oracle

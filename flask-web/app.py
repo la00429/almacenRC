@@ -86,7 +86,7 @@ def productos():
         
         # Usar package PKG_PRODUCTOS.OBTENER_TODOS
         ref_cursor = cursor.var(oracledb.CURSOR)
-        cursor.callproc('PKG_PRODUCTOS.OBTENER_TODOS', [ref_cursor])
+        cursor.callproc('PKG_PRODUCTOS.FN_OBTENER_TODOS', [ref_cursor])
         
         productos_data = []
         for row in ref_cursor.getvalue():
@@ -121,7 +121,7 @@ def api_productos():
         
         # Usar package PKG_PRODUCTOS.OBTENER_TODOS
         ref_cursor = cursor.var(oracledb.CURSOR)
-        cursor.callproc('PKG_PRODUCTOS.OBTENER_TODOS', [ref_cursor])
+        cursor.callproc('PKG_PRODUCTOS.FN_OBTENER_TODOS', [ref_cursor])
         
         productos = []
         for row in ref_cursor.getvalue():
