@@ -20,11 +20,13 @@ services:
       - ./db_scripts/scripts:/opt/oracle/scripts/manual/scripts
       - ./db_scripts/packages:/opt/oracle/scripts/manual/packages
     healthcheck:
-      test: ["CMD-SHELL", "sqlplus -s /nolog <<< 'connect sys/oracle@localhost:1521/XEPDB1 as sysdba; SELECT 1 FROM DUAL; exit;' | grep -q '1' || exit 1"]
+      test: ["CMD-SHELL", "sqlplus -s /nolog <<< 'connect sys/oracle@oracledb:1521/XEPDB1 as sysdba; SELECT 1 FROM DUAL; exit;' | grep -q '1' || exit 1"]
       interval: 30s
       timeout: 30s
       retries: 10
       start_period: 10m
+    networks:
+      - almacen_network
 
   flask-web:
     build:
@@ -34,13 +36,20 @@ services:
     ports:
       - "5000:5000"
     depends_on:
-      - oracledb
+      oracledb:
+        condition: service_healthy
     environment:
       ORACLE_HOST: oracledb
       ORACLE_PORT: 1521
       ORACLE_USER: laura
       ORACLE_PASSWORD: Laura2004
       ORACLE_DATABASE: XEPDB1
+    networks:
+      - almacen_network
+
+networks:
+  almacen_network:
+    driver: bridge
 
 volumes:
   oracle_data:

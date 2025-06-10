@@ -1,5 +1,6 @@
--- Script para configurar el formato de fecha y ejecutar la creación de la base de datos
--- crea tablas
+-- Crea las tablas
+set echo on;
+set termout on;
 start ctlugares.sql;
 start ctparametros.sql;
 start ctperiodos.sql;

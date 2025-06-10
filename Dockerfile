@@ -5,28 +5,35 @@ ENV ORACLE_DATABASE=XEPDB1
 ENV ORACLE_CHARACTERSET=AL32UTF8
 ENV ORACLE_SID=XE
 ENV ORACLE_PDB=XEPDB1
+ENV ORACLE_EDITION=express
+ENV ORACLE_BASE=/opt/oracle
+ENV ORACLE_HOME=/opt/oracle/product/21c/dbhomeXE
 
 USER root
 
+# Crear directorios necesarios
 RUN mkdir -p /opt/oracle/scripts/startup \
     && mkdir -p /opt/oracle/scripts/manual/scripts \
     && mkdir -p /opt/oracle/scripts/manual/packages \
-    && mkdir -p /var/log/oracle_setup \
-    && chown -R oracle:oinstall /opt/oracle/scripts \
-    && chown -R oracle:oinstall /var/log/oracle_setup
+    && mkdir -p /var/log/oracle_setup
 
+# Copiar scripts
 COPY db_scripts/scripts/ /opt/oracle/scripts/manual/scripts/
 COPY db_scripts/packages/ /opt/oracle/scripts/manual/packages/
-COPY init_oracle.sh /opt/oracle/scripts/startup/init_oracle.sh
+COPY init_oracle.sh /opt/oracle/scripts/startup/
 
-RUN chmod -R 755 /opt/oracle/scripts \
-    && chown -R oracle:oinstall /opt/oracle/scripts
+# Configurar permisos
+RUN chown -R oracle:oinstall /opt/oracle/scripts \
+    && chown -R oracle:oinstall /var/log/oracle_setup \
+    && chmod -R 755 /opt/oracle/scripts \
+    && chmod +x /opt/oracle/scripts/startup/init_oracle.sh
 
 USER oracle
 
 HEALTHCHECK --interval=30s --timeout=30s --start-period=10m --retries=3 \
-  CMD echo "connect laura/Laura2004@localhost:1521/XEPDB1; SELECT 1 FROM DUAL; exit;" | sqlplus -s /nolog | grep -q "1" || exit 1
+  CMD $ORACLE_HOME/bin/lsnrctl status | grep -q "READY" || exit 1
 
 EXPOSE 1521 8080
 
-CMD ["/bin/bash", "/opt/oracle/scripts/startup/init_oracle.sh", "full"]
+# Usar el script de inicio estándar de Oracle
+CMD ["/opt/oracle/scripts/startup/init_oracle.sh"]
