@@ -1,3 +1,6 @@
+-- Script para configurar el formato de fecha y ejecutar la creación de la base de datos
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
 -- crea tablas
 start ctlugares.sql;
 start ctparametros.sql;
