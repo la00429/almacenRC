@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}AlmacénRC - Sistema de Inventario{% endblock %}</title>
     
-    <!-- Favicon personalizado para AlmacénRC -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNCIgZmlsbD0iIzJkMzc0OCIvPgo8cGF0aCBkPSJNNiA5aDIwdjE0SDZ6IiBmaWxsPSIjZmY2YjM1Ii8+CjxwYXRoIGQ9Ik04IDEyaDRWMjBIOHptNiAwaDRWMjBoLTR6bTYgMGg0VjIwaC00eiIgZmlsbD0iIzJkMzc0OCIvPgo8cGF0aCBkPSJNMTAgMTRoMnYyaC0yem00IDBoMnYyaC0yem00IDBoMnYyaC0yeiIgZmlsbD0iI2ZmNmIzNSIvPgo8L3N2Zz4K">
     <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNCIgZmlsbD0iIzJkMzc0OCIvPgo8cGF0aCBkPSJNNiA5aDIwdjE0SDZ6IiBmaWxsPSIjZmY2YjM1Ii8+CjxwYXRoIGQ9Ik04IDEyaDRWMjBIOHptNiAwaDRWMjBoLTR6bTYgMGg0VjIwaC00eiIgZmlsbD0iIzJkMzc0OCIvPgo8cGF0aCBkPSJNMTAgMTRoMnYyaC0yem00IDBoMnYyaC0yem00IDBoMnYyaC0yeiIgZmlsbD0iI2ZmNmIzNSIvPgo8L3N2Zz4K">
     
@@ -88,9 +87,6 @@
                     </a>
                     <a href="{{ url_for('proveedores') }}" class="{% if request.endpoint == 'proveedores' %}active{% endif %}">
                         <i class="fas fa-truck"></i> Proveedores
-                    </a>
-                    <a href="{{ url_for('directorio') }}" class="{% if request.endpoint == 'directorio' %}active{% endif %}">
-                        <i class="fas fa-link"></i> Directorio
                     </a>
                     <a href="{{ url_for('proceso_abastecimiento') }}" class="{% if request.endpoint == 'proceso_abastecimiento' %}active{% endif %}">
                         <i class="fas fa-shopping-cart"></i> Abastecimiento

@@ -1,12 +1,4 @@
--- =====================================================
--- PACKAGES PL/SQL PARA GESTIÓN DE INVENTARIO Y ABASTECIMIENTO
--- Sistema: AlmacenRC - Gestión de Repuestos Automotrices
--- Autor: Sistema de Gestión de Inventario
--- Fecha: 2024
--- =====================================================
 
--- Variables globales para manejo de estado lógico (simulando sesión)
--- En un entorno real, estas podrían estar en una tabla de sesión o contexto
 CREATE OR REPLACE PACKAGE PKG_GLOBAL_STATE AS
     TYPE t_number_table IS TABLE OF NUMBER INDEX BY BINARY_INTEGER;
     G_PRODUCTOS_INACTIVOS t_number_table;
@@ -16,18 +8,19 @@ END PKG_GLOBAL_STATE;
 /
 
 CREATE OR REPLACE PACKAGE PKG_PRODUCTOS AS
-    -- Procedimientos CRUD
     PROCEDURE PR_INSERTAR_PRODUCTO (
-        p_id_producto IN PRODUCTOS.ID_PRODUCTO%TYPE,
         p_id_marca IN PRODUCTOS.ID_MARCA%TYPE,
         p_nombre IN PRODUCTOS.NOMBRE%TYPE,
         p_stock IN PRODUCTOS.STOCK%TYPE,
         p_valor_unitario IN PRODUCTOS.VALOR_UNITARIO%TYPE,
         p_fecha_venc IN PRODUCTOS.FECHA_VENC%TYPE DEFAULT NULL,
-        p_iva IN PRODUCTOS.IVA%TYPE
+        p_iva IN PRODUCTOS.IVA%TYPE,
+        p_id_producto_generado OUT PRODUCTOS.ID_PRODUCTO%TYPE
     );
    
     FUNCTION FN_OBTENER_PRODUCTO (p_id_producto IN PRODUCTOS.ID_PRODUCTO%TYPE) RETURN TP_PRODUCTO;
+
+    FUNCTION FN_OBTENER_PRODUCTO_JSON (p_id_producto IN PRODUCTOS.ID_PRODUCTO%TYPE) RETURN VARCHAR2;
      
     FUNCTION OBTENER_TODOS RETURN SYS_REFCURSOR;
      
@@ -42,17 +35,15 @@ CREATE OR REPLACE PACKAGE PKG_PRODUCTOS AS
     );
      
     PROCEDURE PR_ELIMINAR_PRODUCTO (p_id_producto IN PRODUCTOS.ID_PRODUCTO%TYPE);
-     
-    -- Gestión de estado lógico
+
     PROCEDURE PR_MARCAR_INACTIVO_LOGICAMENTE (p_id_producto IN PRODUCTOS.ID_PRODUCTO%TYPE);
     
     PROCEDURE PR_MARCAR_ACTIVO_LOGICAMENTE (p_id_producto IN PRODUCTOS.ID_PRODUCTO%TYPE);
-     
-    -- Función de utilidad para actualizar stock
+
     PROCEDURE PR_ACTUALIZAR_STOCK (
         p_id_producto IN PRODUCTOS.ID_PRODUCTO%TYPE,
         p_cantidad IN NUMBER,
-        p_operacion IN VARCHAR2 DEFAULT 'SUMAR' -- 'SUMAR' o 'RESTAR'
+        p_operacion IN VARCHAR2 DEFAULT 'SUMAR'
     );
 
 END PKG_PRODUCTOS;
@@ -61,23 +52,23 @@ END PKG_PRODUCTOS;
 CREATE OR REPLACE PACKAGE BODY PKG_PRODUCTOS AS
 
     PROCEDURE PR_INSERTAR_PRODUCTO (
-        p_id_producto IN PRODUCTOS.ID_PRODUCTO%TYPE,
         p_id_marca IN PRODUCTOS.ID_MARCA%TYPE,
         p_nombre IN PRODUCTOS.NOMBRE%TYPE,
         p_stock IN PRODUCTOS.STOCK%TYPE,
         p_valor_unitario IN PRODUCTOS.VALOR_UNITARIO%TYPE,
         p_fecha_venc IN PRODUCTOS.FECHA_VENC%TYPE DEFAULT NULL,
-        p_iva IN PRODUCTOS.IVA%TYPE
+        p_iva IN PRODUCTOS.IVA%TYPE,
+        p_id_producto_generado OUT PRODUCTOS.ID_PRODUCTO%TYPE
     ) IS
     BEGIN
+        SELECT SEQ_PRODUCTOS.NEXTVAL INTO p_id_producto_generado FROM DUAL;
+        
         INSERT INTO PRODUCTOS (ID_PRODUCTO, ID_MARCA, NOMBRE, STOCK, VALOR_UNITARIO, FECHA_VENC, IVA)
-        VALUES (p_id_producto, p_id_marca, p_nombre, p_stock, p_valor_unitario, p_fecha_venc, p_iva);
+        VALUES (p_id_producto_generado, p_id_marca, p_nombre, p_stock, p_valor_unitario, p_fecha_venc, p_iva);
         
         COMMIT;
-        DBMS_OUTPUT.PUT_LINE('Producto insertado exitosamente: ' || p_nombre);
+        DBMS_OUTPUT.PUT_LINE('Producto insertado exitosamente: ' || p_nombre || ' (ID: ' || p_id_producto_generado || ')');
     EXCEPTION
-        WHEN DUP_VAL_ON_INDEX THEN
-            RAISE_APPLICATION_ERROR(-20001, 'Error: Ya existe un producto con ID ' || p_id_producto);
         WHEN OTHERS THEN
             ROLLBACK;
             RAISE_APPLICATION_ERROR(-20002, 'Error al insertar producto: ' || SQLERRM);
@@ -93,12 +84,10 @@ CREATE OR REPLACE PACKAGE BODY PKG_PRODUCTOS AS
             v_rec.VALOR_UNITARIO, v_rec.FECHA_VENC, v_rec.IVA
         FROM PRODUCTOS WHERE ID_PRODUCTO = p_id_producto;
 
-        -- Verificar estado lógico
         IF PKG_GLOBAL_STATE.G_PRODUCTOS_INACTIVOS.EXISTS(p_id_producto) THEN 
             v_activo := 0; 
         END IF;
 
-        -- Generar JSON
         SELECT JSON_OBJECT(
                 'id_producto' VALUE v_rec.ID_PRODUCTO,
                 'id_marca' VALUE v_rec.ID_MARCA,
@@ -120,6 +109,39 @@ CREATE OR REPLACE PACKAGE BODY PKG_PRODUCTOS AS
         WHEN OTHERS THEN 
             RAISE;
     END FN_OBTENER_PRODUCTO;
+
+    FUNCTION FN_OBTENER_PRODUCTO_JSON (p_id_producto IN PRODUCTOS.ID_PRODUCTO%TYPE) RETURN VARCHAR2 IS
+        v_rec PRODUCTOS%ROWTYPE;
+        v_activo NUMBER(1) := 1;
+        v_json_data VARCHAR2(4000);
+    BEGIN
+        SELECT ID_PRODUCTO, ID_MARCA, NOMBRE, STOCK, VALOR_UNITARIO, FECHA_VENC, IVA
+        INTO v_rec.ID_PRODUCTO, v_rec.ID_MARCA, v_rec.NOMBRE, v_rec.STOCK,
+            v_rec.VALOR_UNITARIO, v_rec.FECHA_VENC, v_rec.IVA
+        FROM PRODUCTOS WHERE ID_PRODUCTO = p_id_producto;
+
+        IF PKG_GLOBAL_STATE.G_PRODUCTOS_INACTIVOS.EXISTS(p_id_producto) THEN 
+            v_activo := 0; 
+        END IF;
+
+        v_json_data := '{' ||
+            '"id_producto":' || v_rec.ID_PRODUCTO || ',' ||
+            '"id_marca":' || v_rec.ID_MARCA || ',' ||
+            '"nombre":"' || REPLACE(v_rec.NOMBRE, '"', '\"') || '",' ||
+            '"stock":' || NVL(v_rec.STOCK, 0) || ',' ||
+            '"valor_unitario":' || NVL(v_rec.VALOR_UNITARIO, 0) || ',' ||
+            '"fecha_venc":"' || NVL(TO_CHAR(v_rec.FECHA_VENC, 'YYYY-MM-DD'), 'null') || '",' ||
+            '"iva":' || NVL(v_rec.IVA, 0) || ',' ||
+            '"activo_logico":' || v_activo ||
+            '}';
+
+        RETURN v_json_data;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN 
+            RETURN NULL;
+        WHEN OTHERS THEN 
+            RAISE;
+    END FN_OBTENER_PRODUCTO_JSON;
  
     FUNCTION FN_OBTENER_TODOS_PRODUCTOS_CON_ESTADO RETURN TBL_PRODUCTOS PIPELINED IS
         v_activo NUMBER(1);
@@ -160,13 +182,11 @@ CREATE OR REPLACE PACKAGE BODY PKG_PRODUCTOS AS
     ) IS
         v_count NUMBER;
     BEGIN
-        -- Verificar que el producto existe
         SELECT COUNT(*) INTO v_count FROM PRODUCTOS WHERE ID_PRODUCTO = p_id_producto;
         IF v_count = 0 THEN
             RAISE_APPLICATION_ERROR(-20003, 'Error: No existe producto con ID ' || p_id_producto);
         END IF;
 
-        -- Actualizar solo los campos que no son NULL
         UPDATE PRODUCTOS SET
             ID_MARCA = NVL(p_id_marca, ID_MARCA),
             NOMBRE = NVL(p_nombre, NOMBRE),
@@ -187,16 +207,13 @@ CREATE OR REPLACE PACKAGE BODY PKG_PRODUCTOS AS
     PROCEDURE PR_ELIMINAR_PRODUCTO (p_id_producto IN PRODUCTOS.ID_PRODUCTO%TYPE) IS
         v_count NUMBER;
     BEGIN
-        -- Verificar que el producto existe
         SELECT COUNT(*) INTO v_count FROM PRODUCTOS WHERE ID_PRODUCTO = p_id_producto;
         IF v_count = 0 THEN
             RAISE_APPLICATION_ERROR(-20005, 'Error: No existe producto con ID ' || p_id_producto);
         END IF;
 
-        -- Eliminar físicamente
         DELETE FROM PRODUCTOS WHERE ID_PRODUCTO = p_id_producto;
         
-        -- También remover del estado lógico si existía
         IF PKG_GLOBAL_STATE.G_PRODUCTOS_INACTIVOS.EXISTS(p_id_producto) THEN
             PKG_GLOBAL_STATE.G_PRODUCTOS_INACTIVOS.DELETE(p_id_producto);
         END IF;
@@ -212,7 +229,7 @@ CREATE OR REPLACE PACKAGE BODY PKG_PRODUCTOS AS
     PROCEDURE PR_MARCAR_INACTIVO_LOGICAMENTE (p_id_producto IN PRODUCTOS.ID_PRODUCTO%TYPE) IS
         v_count NUMBER;
     BEGIN
-        -- Verificar que el producto existe
+        
         SELECT COUNT(*) INTO v_count FROM PRODUCTOS WHERE ID_PRODUCTO = p_id_producto;
         IF v_count = 0 THEN
             RAISE_APPLICATION_ERROR(-20007, 'Error: No existe producto con ID ' || p_id_producto);
@@ -238,10 +255,10 @@ CREATE OR REPLACE PACKAGE BODY PKG_PRODUCTOS AS
         v_stock_actual NUMBER;
         v_nuevo_stock NUMBER;
     BEGIN
-        -- Obtener stock actual
+        
         SELECT STOCK INTO v_stock_actual FROM PRODUCTOS WHERE ID_PRODUCTO = p_id_producto;
         
-        -- Calcular nuevo stock
+        
         IF UPPER(p_operacion) = 'SUMAR' THEN
             v_nuevo_stock := v_stock_actual + p_cantidad;
         ELSIF UPPER(p_operacion) = 'RESTAR' THEN
@@ -253,7 +270,7 @@ CREATE OR REPLACE PACKAGE BODY PKG_PRODUCTOS AS
             RAISE_APPLICATION_ERROR(-20009, 'Error: Operación inválida. Use SUMAR o RESTAR');
         END IF;
 
-        -- Actualizar stock
+    
         UPDATE PRODUCTOS SET STOCK = v_nuevo_stock WHERE ID_PRODUCTO = p_id_producto;
         COMMIT;
 
@@ -277,36 +294,31 @@ CREATE OR REPLACE PACKAGE BODY PKG_PRODUCTOS AS
         RETURN v_cursor;
     END OBTENER_TODOS;
 
+
+
 END PKG_PRODUCTOS;
 /
 
--- =====================================================
--- PACKAGE: PKG_PROVEEDORES
--- Descripción: Gestión completa de proveedores
--- =====================================================
+
 CREATE OR REPLACE PACKAGE PKG_PROVEEDORES AS
-    -- Procedimientos CRUD
+
     PROCEDURE PR_INSERTAR_PROVEEDOR (
-        p_codigo IN PROVEEDORES.CODIGO%TYPE,
         p_nombre IN PROVEEDORES.NOMBRE%TYPE,
-        p_telefono IN PROVEEDORES.TELEFONO%TYPE
+        p_telefono IN PROVEEDORES.TELEFONO%TYPE,
+        p_codigo_generado OUT PROVEEDORES.CODIGO%TYPE
     );
     
     FUNCTION FN_OBTENER_PROVEEDOR (p_codigo IN PROVEEDORES.CODIGO%TYPE) RETURN TP_PROVEEDOR;
     
     FUNCTION FN_OBTENER_TODOS_PROVEEDORES_CON_ESTADO RETURN TBL_PROVEEDORES PIPELINED;
-    FUNCTION OBTENER_TODOS_PROVEEDORES RETURN SYS_REFCURSOR;
+    FUNCTION OBTENER_TODOS RETURN SYS_REFCURSOR;
 
     
     PROCEDURE PR_ACTUALIZAR_PROVEEDOR (
         p_codigo IN PROVEEDORES.CODIGO%TYPE,
         p_nombre IN PROVEEDORES.NOMBRE%TYPE DEFAULT NULL,
         p_telefono IN PROVEEDORES.TELEFONO%TYPE DEFAULT NULL
-    );
-    
-    PROCEDURE PR_ELIMINAR_PROVEEDOR (p_codigo IN PROVEEDORES.CODIGO%TYPE);
-    
-    -- Gestión de estado lógico
+    );    
     PROCEDURE PR_MARCAR_INACTIVO_LOGICAMENTE (p_codigo IN PROVEEDORES.CODIGO%TYPE);
     PROCEDURE PR_MARCAR_ACTIVO_LOGICAMENTE (p_codigo IN PROVEEDORES.CODIGO%TYPE);
     
@@ -316,19 +328,19 @@ END PKG_PROVEEDORES;
 CREATE OR REPLACE PACKAGE BODY PKG_PROVEEDORES AS
 
     PROCEDURE PR_INSERTAR_PROVEEDOR (
-        p_codigo IN PROVEEDORES.CODIGO%TYPE,
         p_nombre IN PROVEEDORES.NOMBRE%TYPE,
-        p_telefono IN PROVEEDORES.TELEFONO%TYPE
+        p_telefono IN PROVEEDORES.TELEFONO%TYPE,
+        p_codigo_generado OUT PROVEEDORES.CODIGO%TYPE
     ) IS
     BEGIN
+        SELECT SEQ_PROVEEDORES.NEXTVAL INTO p_codigo_generado FROM DUAL;
+        
         INSERT INTO PROVEEDORES (CODIGO, NOMBRE, TELEFONO)
-        VALUES (p_codigo, p_nombre, p_telefono);
+        VALUES (p_codigo_generado, p_nombre, p_telefono);
         
         COMMIT;
-        DBMS_OUTPUT.PUT_LINE('Proveedor insertado exitosamente: ' || p_nombre);
+        DBMS_OUTPUT.PUT_LINE('Proveedor insertado exitosamente: ' || p_nombre || ' (Código: ' || p_codigo_generado || ')');
     EXCEPTION
-        WHEN DUP_VAL_ON_INDEX THEN
-            RAISE_APPLICATION_ERROR(-20011, 'Error: Ya existe un proveedor con código ' || p_codigo);
         WHEN OTHERS THEN
             ROLLBACK;
             RAISE_APPLICATION_ERROR(-20012, 'Error al insertar proveedor: ' || SQLERRM);
@@ -343,12 +355,10 @@ CREATE OR REPLACE PACKAGE BODY PKG_PROVEEDORES AS
         INTO v_rec.CODIGO, v_rec.NOMBRE, v_rec.TELEFONO
         FROM PROVEEDORES WHERE CODIGO = p_codigo;
 
-        -- Verificar estado lógico
         IF PKG_GLOBAL_STATE.G_PROVEEDORES_INACTIVOS.EXISTS(p_codigo) THEN 
             v_activo := 0; 
         END IF;
 
-        -- Generar JSON
         SELECT JSON_OBJECT(
                 'codigo' VALUE v_rec.CODIGO,
                 'nombre' VALUE v_rec.NOMBRE,
@@ -388,7 +398,7 @@ CREATE OR REPLACE PACKAGE BODY PKG_PROVEEDORES AS
         RETURN;
     END FN_OBTENER_TODOS_PROVEEDORES_CON_ESTADO;
 
-    FUNCTION OBTENER_TODOS_PROVEEDORES RETURN SYS_REFCURSOR IS
+    FUNCTION OBTENER_TODOS RETURN SYS_REFCURSOR IS
         v_cursor SYS_REFCURSOR;
     BEGIN
         OPEN v_cursor FOR
@@ -396,7 +406,9 @@ CREATE OR REPLACE PACKAGE BODY PKG_PROVEEDORES AS
             FROM PROVEEDORES
             ORDER BY NOMBRE;
         RETURN v_cursor;
-    END OBTENER_TODOS_PROVEEDORES;
+    END OBTENER_TODOS;
+
+
 
     PROCEDURE PR_ACTUALIZAR_PROVEEDOR (
         p_codigo IN PROVEEDORES.CODIGO%TYPE,
@@ -405,13 +417,11 @@ CREATE OR REPLACE PACKAGE BODY PKG_PROVEEDORES AS
     ) IS
         v_count NUMBER;
     BEGIN
-        -- Verificar que el proveedor existe
         SELECT COUNT(*) INTO v_count FROM PROVEEDORES WHERE CODIGO = p_codigo;
         IF v_count = 0 THEN
             RAISE_APPLICATION_ERROR(-20013, 'Error: No existe proveedor con código ' || p_codigo);
         END IF;
 
-        -- Actualizar solo los campos que no son NULL
         UPDATE PROVEEDORES SET
             NOMBRE = NVL(p_nombre, NOMBRE),
             TELEFONO = NVL(p_telefono, TELEFONO)
@@ -425,41 +435,10 @@ CREATE OR REPLACE PACKAGE BODY PKG_PROVEEDORES AS
             RAISE_APPLICATION_ERROR(-20014, 'Error al actualizar proveedor: ' || SQLERRM);
     END PR_ACTUALIZAR_PROVEEDOR;
 
-    PROCEDURE PR_ELIMINAR_PROVEEDOR (p_codigo IN PROVEEDORES.CODIGO%TYPE) IS
-        v_count NUMBER;
-    BEGIN
-        -- Verificar que el proveedor existe
-        SELECT COUNT(*) INTO v_count FROM PROVEEDORES WHERE CODIGO = p_codigo;
-        IF v_count = 0 THEN
-            RAISE_APPLICATION_ERROR(-20015, 'Error: No existe proveedor con código ' || p_codigo);
-        END IF;
-
-        -- Verificar si tiene productos asociados en directorio
-        SELECT COUNT(*) INTO v_count FROM DIRECTORIO WHERE CODIGO = p_codigo;
-        IF v_count > 0 THEN
-            RAISE_APPLICATION_ERROR(-20016, 'Error: No se puede eliminar proveedor. Tiene productos asociados en directorio');
-        END IF;
-
-        -- Eliminar físicamente
-        DELETE FROM PROVEEDORES WHERE CODIGO = p_codigo;
-        
-        -- También remover del estado lógico si existía
-        IF PKG_GLOBAL_STATE.G_PROVEEDORES_INACTIVOS.EXISTS(p_codigo) THEN
-            PKG_GLOBAL_STATE.G_PROVEEDORES_INACTIVOS.DELETE(p_codigo);
-        END IF;
-
-        COMMIT;
-        DBMS_OUTPUT.PUT_LINE('Proveedor eliminado exitosamente: Código ' || p_codigo);
-    EXCEPTION
-        WHEN OTHERS THEN
-            ROLLBACK;
-            RAISE_APPLICATION_ERROR(-20017, 'Error al eliminar proveedor: ' || SQLERRM);
-    END PR_ELIMINAR_PROVEEDOR;
 
     PROCEDURE PR_MARCAR_INACTIVO_LOGICAMENTE (p_codigo IN PROVEEDORES.CODIGO%TYPE) IS
         v_count NUMBER;
     BEGIN
-        -- Verificar que el proveedor existe
         SELECT COUNT(*) INTO v_count FROM PROVEEDORES WHERE CODIGO = p_codigo;
         IF v_count = 0 THEN
             RAISE_APPLICATION_ERROR(-20018, 'Error: No existe proveedor con código ' || p_codigo);
@@ -480,18 +459,13 @@ CREATE OR REPLACE PACKAGE BODY PKG_PROVEEDORES AS
 END PKG_PROVEEDORES;
 /
 
--- =====================================================
--- PACKAGE: PKG_DIRECTORIO
--- Descripción: Gestión de relaciones producto-proveedor
--- =====================================================
+
 CREATE OR REPLACE PACKAGE PKG_DIRECTORIO AS
-    -- Función de utilidad para generar clave compuesta
     FUNCTION FN_GENERAR_CLAVE_COMPUESTA (
         p_id_producto IN DIRECTORIO.ID_PRODUCTO%TYPE,
         p_codigo IN DIRECTORIO.CODIGO%TYPE
     ) RETURN VARCHAR2;
     
-    -- Procedimientos CRUD
     PROCEDURE PR_INSERTAR_DIRECTORIO (
         p_id_producto IN DIRECTORIO.ID_PRODUCTO%TYPE,
         p_codigo IN DIRECTORIO.CODIGO%TYPE
@@ -504,12 +478,6 @@ CREATE OR REPLACE PACKAGE PKG_DIRECTORIO AS
     
     FUNCTION FN_OBTENER_TODOS_DIRECTORIOS_CON_ESTADO RETURN TBL_DIRECTORIOS PIPELINED;
     
-    PROCEDURE PR_ELIMINAR_DIRECTORIO (
-        p_id_producto IN DIRECTORIO.ID_PRODUCTO%TYPE,
-        p_codigo IN DIRECTORIO.CODIGO%TYPE
-    );
-    
-    -- Gestión de estado lógico
     PROCEDURE PR_MARCAR_INACTIVO_LOGICAMENTE (
         p_id_producto IN DIRECTORIO.ID_PRODUCTO%TYPE,
         p_codigo IN DIRECTORIO.CODIGO%TYPE
@@ -519,7 +487,6 @@ CREATE OR REPLACE PACKAGE PKG_DIRECTORIO AS
         p_codigo IN DIRECTORIO.CODIGO%TYPE
     );
     
-    -- Funciones de consulta específicas
     FUNCTION FN_OBTENER_PROVEEDORES_DE_PRODUCTO (p_id_producto IN DIRECTORIO.ID_PRODUCTO%TYPE) RETURN SYS_REFCURSOR;
 
     FUNCTION FN_OBTENER_PRODUCTOS_DE_PROVEEDOR (p_codigo IN DIRECTORIO.CODIGO%TYPE) RETURN SYS_REFCURSOR;
@@ -549,13 +516,11 @@ CREATE OR REPLACE PACKAGE BODY PKG_DIRECTORIO AS
     ) IS
         v_count NUMBER;
     BEGIN
-        -- Verificar que el producto existe
         SELECT COUNT(*) INTO v_count FROM PRODUCTOS WHERE ID_PRODUCTO = p_id_producto;
         IF v_count = 0 THEN
             RAISE_APPLICATION_ERROR(-20019, 'Error: No existe producto con ID ' || p_id_producto);
         END IF;
         
-        -- Verificar que el proveedor existe
         SELECT COUNT(*) INTO v_count FROM PROVEEDORES WHERE CODIGO = p_codigo;
         IF v_count = 0 THEN
             RAISE_APPLICATION_ERROR(-20020, 'Error: No existe proveedor con código ' || p_codigo);
@@ -587,13 +552,12 @@ CREATE OR REPLACE PACKAGE BODY PKG_DIRECTORIO AS
         INTO v_rec.ID_PRODUCTO, v_rec.CODIGO
         FROM DIRECTORIO WHERE ID_PRODUCTO = p_id_producto AND CODIGO = p_codigo;
 
-        -- Verificar estado lógico usando clave compuesta
+        
         v_clave := FN_GENERAR_CLAVE_COMPUESTA(p_id_producto, p_codigo);
         IF PKG_GLOBAL_STATE.G_DIRECTORIOS_INACTIVOS.EXISTS(v_clave) THEN 
             v_activo := 0; 
         END IF;
 
-        -- Generar JSON
         SELECT JSON_OBJECT(
                 'id_producto' VALUE v_rec.ID_PRODUCTO,
                 'codigo' VALUE v_rec.CODIGO,
@@ -633,36 +597,6 @@ CREATE OR REPLACE PACKAGE BODY PKG_DIRECTORIO AS
         RETURN;
     END FN_OBTENER_TODOS_DIRECTORIOS_CON_ESTADO;
 
-    PROCEDURE PR_ELIMINAR_DIRECTORIO (
-        p_id_producto IN DIRECTORIO.ID_PRODUCTO%TYPE,
-        p_codigo IN DIRECTORIO.CODIGO%TYPE
-    ) IS
-        v_count NUMBER;
-        v_clave VARCHAR2(50);
-    BEGIN
-        -- Verificar que la relación existe
-        SELECT COUNT(*) INTO v_count FROM DIRECTORIO WHERE ID_PRODUCTO = p_id_producto AND CODIGO = p_codigo;
-        IF v_count = 0 THEN
-            RAISE_APPLICATION_ERROR(-20023, 'Error: No existe la relación Producto ' || p_id_producto || ' - Proveedor ' || p_codigo);
-        END IF;
-
-        -- Eliminar físicamente
-        DELETE FROM DIRECTORIO WHERE ID_PRODUCTO = p_id_producto AND CODIGO = p_codigo;
-        
-        -- También remover del estado lógico si existía
-        v_clave := FN_GENERAR_CLAVE_COMPUESTA(p_id_producto, p_codigo);
-        IF PKG_GLOBAL_STATE.G_DIRECTORIOS_INACTIVOS.EXISTS(v_clave) THEN
-            PKG_GLOBAL_STATE.G_DIRECTORIOS_INACTIVOS.DELETE(v_clave);
-        END IF;
-
-        COMMIT;
-        DBMS_OUTPUT.PUT_LINE('Relación directorio eliminada exitosamente: Producto ' || p_id_producto || ' - Proveedor ' || p_codigo);
-    EXCEPTION
-        WHEN OTHERS THEN
-            ROLLBACK;
-            RAISE_APPLICATION_ERROR(-20024, 'Error al eliminar relación directorio: ' || SQLERRM);
-    END PR_ELIMINAR_DIRECTORIO;
-
     PROCEDURE PR_MARCAR_INACTIVO_LOGICAMENTE (
         p_id_producto IN DIRECTORIO.ID_PRODUCTO%TYPE,
         p_codigo IN DIRECTORIO.CODIGO%TYPE
@@ -670,7 +604,6 @@ CREATE OR REPLACE PACKAGE BODY PKG_DIRECTORIO AS
         v_count NUMBER;
         v_clave VARCHAR2(50);
     BEGIN
-        -- Verificar que la relación existe
         SELECT COUNT(*) INTO v_count FROM DIRECTORIO WHERE ID_PRODUCTO = p_id_producto AND CODIGO = p_codigo;
         IF v_count = 0 THEN
             RAISE_APPLICATION_ERROR(-20025, 'Error: No existe la relación Producto ' || p_id_producto || ' - Proveedor ' || p_codigo);
@@ -744,18 +677,20 @@ END FN_OBTENER_PRODUCTOS_DE_PROVEEDOR;
     BEGIN
         OPEN v_cursor FOR
             SELECT 
-                ID_PRODUCTO, CODIGO
-            FROM DIRECTORIO
-            ORDER BY ID_PRODUCTO, CODIGO;
+                D.ID_PRODUCTO, 
+                P.NOMBRE AS PRODUCTO_NOMBRE,
+                D.CODIGO AS CODIGO_PROVEEDOR,
+                PR.NOMBRE AS PROVEEDOR_NOMBRE
+            FROM DIRECTORIO D
+            JOIN PRODUCTOS P ON D.ID_PRODUCTO = P.ID_PRODUCTO
+            JOIN PROVEEDORES PR ON D.CODIGO = PR.CODIGO
+            ORDER BY P.NOMBRE, PR.NOMBRE;
         RETURN v_cursor;
     END OBTENER_TODOS;
 
 END PKG_DIRECTORIO;
 /
 
--- =====================================================
--- CONFIRMACIÓN DE CREACIÓN
--- =====================================================
 BEGIN
     DBMS_OUTPUT.PUT_LINE('=== PACKAGES PL/SQL CREADOS EXITOSAMENTE ===');
     DBMS_OUTPUT.PUT_LINE('1. PKG_GLOBAL_STATE - Variables globales para estado lógico');

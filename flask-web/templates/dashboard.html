@@ -8,7 +8,7 @@
     <span class="badge bg-primary">Tiempo real</span>
 </div>
 
-<!-- Métricas principales -->
+
 <div class="row mb-4">
     <div class="col-md-3 mb-3">
         <div class="card metric-card">
@@ -67,7 +67,7 @@
     </div>
 </div>
 
-<!-- Productos con stock crítico -->
+
 <div class="row">
     <div class="col-md-12">
         <div class="card">
@@ -92,17 +92,17 @@
                             </thead>
                             <tbody>
                                 {% for producto in metrics.productos_criticos %}
-                                <tr class="{% if producto[2] < 5 %}table-danger{% elif producto[2] < 10 %}table-warning{% endif %}">
-                                    <td>{{ producto[0] }}</td>
-                                    <td>{{ producto[1] }}</td>
+                                <tr class="{% if producto.stock < 5 %}table-danger{% elif producto.stock < 10 %}table-warning{% endif %}">
+                                    <td>{{ producto.id_producto }}</td>
+                                    <td>{{ producto.nombre }}</td>
                                     <td>
-                                        <span class="badge {% if producto[2] < 5 %}bg-danger{% else %}bg-warning text-dark{% endif %}">
-                                            {{ producto[2] }} unidades
+                                        <span class="badge {% if producto.stock < 5 %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+                                            {{ producto.stock }} unidades
                                         </span>
                                     </td>
-                                    <td>${{ "{:,.0f}".format(producto[3]) }}</td>
+                                    <td>${{ "{:,.0f}".format(producto.valor_unitario) }}</td>
                                     <td>
-                                        {% if producto[2] < 5 %}
+                                        {% if producto.stock < 5 %}
                                             <span class="badge bg-danger">CRÍTICO</span>
                                         {% else %}
                                             <span class="badge bg-warning text-dark">BAJO</span>
@@ -125,7 +125,7 @@
     </div>
 </div>
 
-<!-- Acciones rápidas -->
+
 <div class="row mt-4">
     <div class="col-md-12">
         <div class="card">
@@ -145,8 +145,8 @@
                         </a>
                     </div>
                     <div class="col-md-4 mb-3">
-                        <a href="{{ url_for('directorio') }}" class="btn btn-success w-100">
-                            <i class="fas fa-link"></i> Ver Directorio
+                        <a href="{{ url_for('proceso_abastecimiento') }}" class="btn btn-success w-100">
+                            <i class="fas fa-shopping-cart"></i> Proceso Abastecimiento
                         </a>
                     </div>
                 </div>
@@ -158,7 +158,6 @@
 
 {% block scripts %}
 <script>
-    // Auto-refresh cada 30 segundos
     setTimeout(function() {
         location.reload();
     }, 30000);

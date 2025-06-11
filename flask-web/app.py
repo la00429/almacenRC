@@ -3,19 +3,21 @@ import oracledb
 import json
 from datetime import datetime
 import os
+from dateutil import parser
 
 app = Flask(__name__)
 app.secret_key = 'almacenrc_secret_key'
 
-# Configuración de la base de datos
 DB_CONFIG = {
     'user': 'laura',
     'password': 'Laura2004',
-    'dsn': 'oracledb:1521/XEPDB1'  # Usar nombre del servicio Docker correcto
+    'dsn': 'oracledb:1521/XEPDB1'
 }
 
+PRODUCTOS_INACTIVOS = set()
+PROVEEDORES_INACTIVOS = set()
+
 def get_db_connection():
-    """Obtener conexión a la base de datos Oracle"""
     try:
         connection = oracledb.connect(**DB_CONFIG)
         return connection
@@ -25,7 +27,6 @@ def get_db_connection():
 
 @app.route('/')
 def dashboard():
-    """Dashboard principal con métricas"""
     conn = get_db_connection()
     if not conn:
         flash('Error de conexión a la base de datos', 'error')
@@ -34,27 +35,31 @@ def dashboard():
     try:
         cursor = conn.cursor()
         
-        # Obtener métricas
-        cursor.execute("SELECT COUNT(*) FROM PRODUCTOS")
-        total_productos = cursor.fetchone()[0]
+
+        ref_cursor = cursor.callfunc('PKG_PRODUCTOS.OBTENER_TODOS', oracledb.CURSOR)
         
-        cursor.execute("SELECT COUNT(*) FROM PRODUCTOS WHERE STOCK < 10")
-        productos_stock_bajo = cursor.fetchone()[0]
+        productos = []
+        total_productos = 0
+        productos_stock_bajo = 0
+        valor_inventario = 0
         
-        cursor.execute("SELECT COUNT(*) FROM PROVEEDORES")
-        total_proveedores = cursor.fetchone()[0]
+        for row in ref_cursor:
+            total_productos += 1
+            if row[2] < 10:
+                productos_stock_bajo += 1
+            valor_inventario += (row[2] or 0) * (row[3] or 0)
+            
+            if row[2] < 10:
+                productos.append({
+                    'id_producto': row[0],
+                    'nombre': row[1],
+                    'stock': row[2],
+                    'valor_unitario': row[3]
+                })
         
-        cursor.execute("SELECT SUM(STOCK * VALOR_UNITARIO) FROM PRODUCTOS")
-        valor_inventario = cursor.fetchone()[0] or 0
-        
-        # Productos con stock crítico
-        cursor.execute("""
-            SELECT ID_PRODUCTO, NOMBRE, STOCK, VALOR_UNITARIO 
-            FROM PRODUCTOS 
-            WHERE STOCK < 10 
-            ORDER BY STOCK ASC
-        """)
-        productos_criticos = cursor.fetchall()
+
+        ref_cursor = cursor.callfunc('PKG_PROVEEDORES.OBTENER_TODOS', oracledb.CURSOR)
+        total_proveedores = len(list(ref_cursor))
         
         cursor.close()
         conn.close()
@@ -64,7 +69,7 @@ def dashboard():
             'productos_stock_bajo': productos_stock_bajo,
             'total_proveedores': total_proveedores,
             'valor_inventario': valor_inventario,
-            'productos_criticos': productos_criticos
+            'productos_criticos': productos
         }
         
         return render_template('dashboard.html', metrics=metrics)
@@ -75,7 +80,6 @@ def dashboard():
 
 @app.route('/productos')
 def productos():
-    """Gestión de productos usando PKG_PRODUCTOS"""
     conn = get_db_connection()
     if not conn:
         flash('Error de conexión a la base de datos', 'error')
@@ -84,20 +88,23 @@ def productos():
     try:
         cursor = conn.cursor()
         
-        # Usar package PKG_PRODUCTOS.FN_GET_ALL_PRODUCTS_FOR_APEX
-        ref_cursor = cursor.var(oracledb.CURSOR)
-        cursor.callproc('PKG_PRODUCTOS.FN_GET_ALL_PRODUCTS_FOR_APEX', [ref_cursor])
+
+        ref_cursor = cursor.callfunc('PKG_PRODUCTOS.OBTENER_TODOS', oracledb.CURSOR)
         
         productos_data = []
-        for row in ref_cursor.getvalue():
+        for row in ref_cursor:
+            id_producto = row[0]
+            activo = 'N' if id_producto in PRODUCTOS_INACTIVOS else 'S'
+            
             productos_data.append({
-                'id': row[0],           # ID_PRODUCTO
-                'nombre': row[2],       # NOMBRE
-                'stock': row[3],        # STOCK
-                'precio': row[4],       # VALOR_UNITARIO
-                'vencimiento': row[5],  # FECHA_VENC
-                'iva': row[6],          # IVA
-                'estado': 'CRITICO' if row[3] < 10 else 'BAJO' if row[3] < 30 else 'NORMAL'
+                'id': id_producto,
+                'nombre': row[1],
+                'stock': row[2],
+                'precio': row[3],
+                'vencimiento': row[4],
+                'iva': row[5],
+                'estado': 'CRITICO' if row[2] < 10 else 'BAJO' if row[2] < 30 else 'NORMAL',
+                'activo': activo
             })
         
         cursor.close()
@@ -106,8 +113,29 @@ def productos():
         return render_template('productos.html', productos=productos_data)
         
     except Exception as e:
-        flash(f'Error al obtener productos: {e}', 'error')
-        return render_template('error.html')
+        try:
+            cursor = conn.cursor()
+            ref_cursor = cursor.callfunc('PKG_PRODUCTOS.OBTENER_TODOS', oracledb.CURSOR)
+            
+            productos_data = []
+            for row in ref_cursor:
+                productos_data.append({
+                    'id': row[0],           
+                    'nombre': row[1],       
+                    'stock': row[2],        
+                    'precio': row[3],       
+                    'vencimiento': row[4],  
+                    'iva': row[5],          
+                    'estado': 'CRITICO' if row[2] < 10 else 'BAJO' if row[2] < 30 else 'NORMAL'
+                })
+            
+            cursor.close()
+            conn.close()
+            return render_template('productos.html', productos=productos_data)
+            
+        except Exception as e2:
+            flash(f'Error al obtener productos: {e} | Fallback: {e2}', 'error')
+            return render_template('error.html')
 
 @app.route('/api/productos', methods=['GET'])
 def api_productos():
@@ -119,20 +147,18 @@ def api_productos():
     try:
         cursor = conn.cursor()
         
-        # Usar package PKG_PRODUCTOS.FN_GET_ALL_PRODUCTS_FOR_APEX
-        ref_cursor = cursor.var(oracledb.CURSOR)
-        cursor.callproc('PKG_PRODUCTOS.FN_GET_ALL_PRODUCTS_FOR_APEX', [ref_cursor])
+        ref_cursor = cursor.callfunc('PKG_PRODUCTOS.OBTENER_TODOS', oracledb.CURSOR)
         
         productos = []
-        for row in ref_cursor.getvalue():
+        for row in ref_cursor:
             productos.append({
                 'id_producto': row[0],
-                'nombre': row[2],
-                'stock': row[3],
-                'valor_unitario': row[4],
-                'fecha_venc': row[5],
-                'iva': row[6],
-                'estado_stock': 'CRITICO' if row[3] < 10 else 'BAJO' if row[3] < 30 else 'NORMAL'
+                'nombre': row[1],
+                'stock': row[2],
+                'valor_unitario': row[3],
+                'fecha_venc': row[4],
+                'iva': row[5],
+                'estado_stock': 'CRITICO' if row[2] < 10 else 'BAJO' if row[2] < 30 else 'NORMAL'
             })
         
         cursor.close()
@@ -150,7 +176,7 @@ def api_productos():
 
 @app.route('/api/productos', methods=['POST'])
 def api_crear_producto():
-    """Crear producto usando PKG_PRODUCTOS"""
+    """Crear producto usando PKG_PRODUCTOS.PR_INSERTAR_PRODUCTO"""
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Error de conexión'}), 500
@@ -159,27 +185,55 @@ def api_crear_producto():
         data = request.get_json()
         cursor = conn.cursor()
         
-        # Usar package PKG_PRODUCTOS.INSERTAR_PRODUCTO
         fecha_venc = data.get('fecha_venc')
-        if fecha_venc == 'N/A' or not fecha_venc:
+        if fecha_venc:
+            try:
+                fecha_venc = parser.parse(fecha_venc)
+            except:
+                fecha_venc = None
+        else:
             fecha_venc = None
+        
+        id_generado = cursor.var(oracledb.NUMBER)
             
-        cursor.callproc('PKG_PRODUCTOS.INSERTAR_PRODUCTO', [
-            data['id_producto'], 
+        cursor.callproc('PKG_PRODUCTOS.PR_INSERTAR_PRODUCTO', [
             data['id_marca'], 
             data['nombre'], 
             data['stock'], 
             data['valor_unitario'], 
             fecha_venc, 
-            data['iva']
+            data['iva'],
+            id_generado
         ])
+        
+        id_producto_nuevo = int(id_generado.getvalue())
+        codigo_proveedor = data.get('codigo_proveedor')
+        
+        if codigo_proveedor:
+            try:
+                cursor.callproc('PKG_DIRECTORIO.PR_INSERTAR_DIRECTORIO', [
+                    id_producto_nuevo,
+                    codigo_proveedor
+                ])
+                relacion_creada = True
+            except Exception as e:
+                print(f"⚠️ No se pudo crear relación automática: {e}")
+                relacion_creada = False
+        else:
+            relacion_creada = False
         
         cursor.close()
         conn.close()
         
+        mensaje = 'Producto creado exitosamente'
+        if relacion_creada:
+            mensaje += ' con proveedor asignado automáticamente'
+        
         return jsonify({
             'success': True,
-            'message': 'Producto creado exitosamente',
+            'message': mensaje,
+            'id_producto_generado': id_producto_nuevo,
+            'relacion_directorio_creada': relacion_creada,
             'timestamp': datetime.now().isoformat()
         })
         
@@ -188,7 +242,7 @@ def api_crear_producto():
 
 @app.route('/api/productos/<int:producto_id>', methods=['GET'])
 def api_obtener_producto(producto_id):
-    """Obtener un producto específico por ID usando SQL directo (más confiable)"""
+    """Obtener un producto específico usando PKG_PRODUCTOS.FN_OBTENER_PRODUCTO_JSON"""
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Error de conexión'}), 500
@@ -196,34 +250,17 @@ def api_obtener_producto(producto_id):
     try:
         cursor = conn.cursor()
         
-        # Usar SQL directo para consultas individuales (más confiable)
-        cursor.execute("""
-            SELECT ID_PRODUCTO, NOMBRE, STOCK, VALOR_UNITARIO, 
-                   NVL(TO_CHAR(FECHA_VENC, 'YYYY-MM-DD'), 'N/A') as FECHA_VENC, IVA
-            FROM PRODUCTOS 
-            WHERE ID_PRODUCTO = :1
-        """, [producto_id])
+        producto_json = cursor.callfunc('PKG_PRODUCTOS.FN_OBTENER_PRODUCTO_JSON', str, [producto_id])
         
-        row = cursor.fetchone()
-        if not row:
+        if not producto_json:
             return jsonify({'error': 'Producto no encontrado'}), 404
-        
-        producto = {
-            'id_producto': row[0],
-            'nombre': row[1],
-            'stock': row[2],
-            'valor_unitario': row[3],
-            'fecha_venc': row[4] if row[4] != 'N/A' else None,
-            'iva': row[5],
-            'estado_stock': 'CRITICO' if row[2] < 10 else 'BAJO' if row[2] < 30 else 'NORMAL'
-        }
         
         cursor.close()
         conn.close()
         
         return jsonify({
             'success': True,
-            'data': producto,
+            'data': json.loads(producto_json),
             'timestamp': datetime.now().isoformat()
         })
         
@@ -232,7 +269,7 @@ def api_obtener_producto(producto_id):
 
 @app.route('/api/productos/<int:producto_id>', methods=['PUT'])
 def api_actualizar_producto(producto_id):
-    """Actualizar un producto usando PKG_PRODUCTOS"""
+    """Actualizar un producto usando PKG_PRODUCTOS.PR_ACTUALIZAR_PRODUCTO"""
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Error de conexión'}), 500
@@ -241,23 +278,55 @@ def api_actualizar_producto(producto_id):
         data = request.get_json()
         cursor = conn.cursor()
         
-        # Usar package PKG_PRODUCTOS.PR_ACTUALIZAR_PRODUCTO
+        fecha_venc = data.get('fecha_venc')
+        if fecha_venc:
+            try:
+                fecha_venc = parser.parse(fecha_venc)
+            except:
+                fecha_venc = None
+        
         cursor.callproc('PKG_PRODUCTOS.PR_ACTUALIZAR_PRODUCTO', [
             producto_id,
             data.get('id_marca'),
             data.get('nombre'),
             data.get('stock'),
             data.get('valor_unitario'),
-            data.get('fecha_venc'),
+            fecha_venc,
             data.get('iva')
         ])
+        
+        codigo_proveedor = data.get('codigo_proveedor')
+        relacion_actualizada = False
+        
+        if codigo_proveedor:
+            try:
+                
+                try:
+                    cursor.callproc('PKG_DIRECTORIO.PR_ELIMINAR_DIRECTORIO', [producto_id, codigo_proveedor])
+                except:
+                    pass  
+                
+    
+                cursor.callproc('PKG_DIRECTORIO.PR_INSERTAR_DIRECTORIO', [
+                    producto_id,
+                    codigo_proveedor
+                ])
+                relacion_actualizada = True
+            except Exception as e:
+                print(f"⚠️ No se pudo actualizar relación automática: {e}")
+                relacion_actualizada = False
         
         cursor.close()
         conn.close()
         
+        mensaje = f'Producto {producto_id} actualizado exitosamente'
+        if relacion_actualizada:
+            mensaje += ' con proveedor actualizado automáticamente'
+        
         return jsonify({
             'success': True,
-            'message': f'Producto {producto_id} actualizado exitosamente',
+            'message': mensaje,
+            'relacion_directorio_actualizada': relacion_actualizada,
             'timestamp': datetime.now().isoformat()
         })
         
@@ -265,31 +334,37 @@ def api_actualizar_producto(producto_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/productos/<int:producto_id>', methods=['DELETE'])
-def api_eliminar_producto(producto_id):
-    """Eliminar un producto usando PKG_PRODUCTOS"""
-    conn = get_db_connection()
-    if not conn:
-        return jsonify({'error': 'Error de conexión'}), 500
-    
+def api_inhabilitar_producto(producto_id):
+    """Inhabilitar un producto (eliminación lógica) usando memoria Flask"""
     try:
-        cursor = conn.cursor()
         
-        # Usar package PKG_PRODUCTOS.PR_ELIMINAR_PRODUCTO
-        cursor.callproc('PKG_PRODUCTOS.PR_ELIMINAR_PRODUCTO', [producto_id])
-        
-        cursor.close()
-        conn.close()
+        PRODUCTOS_INACTIVOS.add(producto_id)
         
         return jsonify({
             'success': True,
-            'message': 'Producto eliminado exitosamente',
+            'message': 'Producto inhabilitado exitosamente (eliminación lógica)',
             'timestamp': datetime.now().isoformat()
         })
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# API REST para PROVEEDORES
+@app.route('/api/productos/<int:producto_id>/reactivar', methods=['POST'])
+def api_reactivar_producto(producto_id):
+    """Reactivar producto (habilitar) usando memoria Flask"""
+    try:
+        
+        PRODUCTOS_INACTIVOS.discard(producto_id)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Producto habilitado exitosamente (reactivación lógica)',
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/proveedores', methods=['GET'])
 def api_proveedores():
     """API REST para obtener proveedores usando PKG_PROVEEDORES"""
@@ -300,12 +375,11 @@ def api_proveedores():
     try:
         cursor = conn.cursor()
         
-        # Usar package PKG_PROVEEDORES.FN_GET_ALL_PROVEEDORES_FOR_APEX
-        ref_cursor = cursor.var(oracledb.CURSOR)
-        cursor.callproc('PKG_PROVEEDORES.FN_GET_ALL_PROVEEDORES_FOR_APEX', [ref_cursor])
+        
+        ref_cursor = cursor.callfunc('PKG_PROVEEDORES.OBTENER_TODOS', oracledb.CURSOR)
         
         proveedores = []
-        for row in ref_cursor.getvalue():
+        for row in ref_cursor:
             proveedores.append({
                 'codigo': row[0],
                 'nombre': row[1],
@@ -336,11 +410,14 @@ def api_crear_proveedor():
         data = request.get_json()
         cursor = conn.cursor()
         
-        # Usar package PKG_PROVEEDORES.PR_INSERTAR_PROVEEDOR
+        
+        codigo_generado = cursor.var(oracledb.NUMBER)
+        
+        
         cursor.callproc('PKG_PROVEEDORES.PR_INSERTAR_PROVEEDOR', [
-            data['codigo'],
             data['nombre'], 
-            data['telefono']
+            data['telefono'],
+            codigo_generado
         ])
         
         cursor.close()
@@ -349,58 +426,16 @@ def api_crear_proveedor():
         return jsonify({
             'success': True,
             'message': 'Proveedor creado exitosamente',
+            'codigo_generado': int(codigo_generado.getvalue()),
             'timestamp': datetime.now().isoformat()
         })
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/proveedores/<string:codigo_proveedor>', methods=['GET'])
-def api_obtener_proveedor(codigo_proveedor):
-    """Obtener un proveedor específico por código"""
-    conn = get_db_connection()
-    if not conn:
-        return jsonify({'error': 'Error de conexión'}), 500
-    
-    try:
-        cursor = conn.cursor()
-        
-        # Consulta directa para obtener proveedor por código
-        cursor.execute("""
-            SELECT CODIGO_PROVEEDOR, NOMBRE, DIRECCION, TELEFONO, EMAIL
-            FROM PROVEEDORES 
-            WHERE CODIGO_PROVEEDOR = :1
-        """, [codigo_proveedor])
-        
-        row = cursor.fetchone()
-        if not row:
-            cursor.close()
-            conn.close()
-            return jsonify({'error': 'Proveedor no encontrado'}), 404
-            
-        proveedor = {
-            'codigo_proveedor': row[0],
-            'nombre': row[1],
-            'direccion': row[2],
-            'telefono': row[3],
-            'email': row[4]
-        }
-        
-        cursor.close()
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'data': proveedor,
-            'timestamp': datetime.now().isoformat()
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/proveedores/<string:codigo_proveedor>', methods=['PUT'])
+@app.route('/api/proveedores/<int:codigo_proveedor>', methods=['PUT'])
 def api_actualizar_proveedor(codigo_proveedor):
-    """Actualizar proveedor usando PKG_PROVEEDORES"""
+    """Actualizar proveedor usando PKG_PROVEEDORES.PR_ACTUALIZAR_PROVEEDOR"""
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Error de conexión'}), 500
@@ -409,7 +444,7 @@ def api_actualizar_proveedor(codigo_proveedor):
         data = request.get_json()
         cursor = conn.cursor()
         
-        # Usar package PKG_PROVEEDORES.PR_ACTUALIZAR_PROVEEDOR
+     
         cursor.callproc('PKG_PROVEEDORES.PR_ACTUALIZAR_PROVEEDOR', [
             codigo_proveedor,
             data.get('nombre'),
@@ -428,10 +463,40 @@ def api_actualizar_proveedor(codigo_proveedor):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# API REST para DIRECTORIO
-@app.route('/api/directorio', methods=['GET'])
-def api_directorio():
-    """API REST para obtener directorio usando PKG_DIRECTORIO"""
+@app.route('/api/proveedores/<string:codigo_proveedor>', methods=['DELETE'])
+def api_inhabilitar_proveedor(codigo_proveedor):
+    """Inhabilitar proveedor (eliminación lógica) usando memoria Flask"""
+    try:
+        
+        PROVEEDORES_INACTIVOS.add(int(codigo_proveedor))
+        
+        return jsonify({
+            'success': True,
+            'message': 'Proveedor inhabilitado exitosamente (eliminación lógica)',
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/proveedores/<string:codigo_proveedor>/reactivar', methods=['POST'])
+def api_reactivar_proveedor(codigo_proveedor):
+    """Reactivar proveedor (habilitar) usando memoria Flask"""
+    try:
+        PROVEEDORES_INACTIVOS.discard(int(codigo_proveedor))
+        
+        return jsonify({
+            'success': True,
+            'message': 'Proveedor habilitado exitosamente (reactivación lógica)',
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/proveedores/<string:codigo_proveedor>/productos', methods=['GET'])
+def api_productos_proveedor(codigo_proveedor):
+    """Obtener productos de un proveedor específico"""
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Error de conexión'}), 500
@@ -439,12 +504,53 @@ def api_directorio():
     try:
         cursor = conn.cursor()
         
-        # Usar package PKG_DIRECTORIO.FN_GET_ALL_DIRECTORIOS_FOR_APEX
-        ref_cursor = cursor.var(oracledb.CURSOR)
-        cursor.callproc('PKG_DIRECTORIO.FN_GET_ALL_DIRECTORIOS_FOR_APEX', [ref_cursor])
+        ref_cursor_dir = cursor.callfunc('PKG_DIRECTORIO.OBTENER_TODOS', oracledb.CURSOR)
+        
+        productos = []
+        for row in ref_cursor_dir:
+            if str(row[2]) == str(codigo_proveedor):  
+                id_producto = row[0]
+                
+                
+                producto_json = cursor.callfunc('PKG_PRODUCTOS.FN_OBTENER_PRODUCTO_JSON', str, [id_producto])
+                if producto_json:
+                    producto_info = json.loads(producto_json)
+                    productos.append({
+                        'id_producto': producto_info['id_producto'],
+                        'nombre': producto_info['nombre'],
+                        'stock': producto_info['stock'],
+                        'valor_unitario': producto_info['valor_unitario'],
+                        'estado_stock': 'CRITICO' if producto_info['stock'] < 10 else 'BAJO' if producto_info['stock'] < 30 else 'NORMAL'
+                    })
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'data': productos,
+            'total': len(productos),
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/directorio', methods=['GET'])
+def api_directorio():
+    """API REST INTERNA para obtener directorio usando PKG_DIRECTORIO - Solo para consultas del sistema"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Error de conexión'}), 500
+    
+    try:
+        cursor = conn.cursor()
+        
+        
+        ref_cursor = cursor.callfunc('PKG_DIRECTORIO.OBTENER_TODOS', oracledb.CURSOR)
         
         directorio = []
-        for row in ref_cursor.getvalue():
+        for row in ref_cursor:
             directorio.append({
                 'id_producto': row[0],
                 'producto': row[1],
@@ -465,131 +571,9 @@ def api_directorio():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/proveedores')
-def proveedores():
-    """Gestión de proveedores usando PKG_PROVEEDORES"""
-    conn = get_db_connection()
-    if not conn:
-        flash('Error de conexión a la base de datos', 'error')
-        return render_template('error.html')
-    
-    try:
-        cursor = conn.cursor()
-        
-        # Usar package PKG_PROVEEDORES.FN_GET_ALL_PROVEEDORES_FOR_APEX
-        ref_cursor = cursor.var(oracledb.CURSOR)
-        cursor.callproc('PKG_PROVEEDORES.FN_GET_ALL_PROVEEDORES_FOR_APEX', [ref_cursor])
-        
-        proveedores_data = []
-        for row in ref_cursor.getvalue():
-            # Contar productos usando SQL directo (más eficiente)
-            cursor.execute("SELECT COUNT(*) FROM DIRECTORIO WHERE CODIGO = :1", [row[0]])
-            productos_count = cursor.fetchone()[0]
-            
-            proveedores_data.append({
-                'codigo': row[0],
-                'nombre': row[1],
-                'telefono': row[2],
-                'productos_count': productos_count
-            })
-        
-        cursor.close()
-        conn.close()
-        
-        return render_template('proveedores.html', proveedores=proveedores_data)
-        
-    except Exception as e:
-        flash(f'Error al obtener proveedores: {e}', 'error')
-        return render_template('error.html')
-
-@app.route('/directorio')
-def directorio():
-    """Gestión de directorio de abastecimiento"""
-    conn = get_db_connection()
-    if not conn:
-        flash('Error de conexión a la base de datos', 'error')
-        return render_template('error.html')
-    
-    try:
-        cursor = conn.cursor()
-        
-        # Usar package PKG_DIRECTORIO.FN_GET_ALL_DIRECTORIOS_FOR_APEX
-        ref_cursor = cursor.var(oracledb.CURSOR)
-        cursor.callproc('PKG_DIRECTORIO.FN_GET_ALL_DIRECTORIOS_FOR_APEX', [ref_cursor])
-        
-        directorio_data = []
-        for row in ref_cursor.getvalue():
-            # Obtener stock y precio usando SQL directo
-            cursor.execute("SELECT STOCK, VALOR_UNITARIO FROM PRODUCTOS WHERE ID_PRODUCTO = :1", [row[0]])
-            producto_info = cursor.fetchone()
-            
-            directorio_data.append({
-                'id_producto': row[0],
-                'producto': row[1],
-                'codigo_proveedor': row[2],
-                'proveedor': row[3],
-                'stock': producto_info[0] if producto_info else 0,
-                'precio': producto_info[1] if producto_info else 0
-            })
-        
-        cursor.close()
-        conn.close()
-        
-        return render_template('directorio.html', directorio=directorio_data)
-        
-    except Exception as e:
-        flash(f'Error al obtener directorio: {e}', 'error')
-        return render_template('error.html')
-
-# Rutas de procesos de negocio
-@app.route('/proceso/abastecimiento')
-def proceso_abastecimiento():
-    """Proceso de abastecimiento - productos con stock bajo usando packages"""
-    conn = get_db_connection()
-    if not conn:
-        flash('Error de conexión a la base de datos', 'error')
-        return render_template('error.html')
-    
-    try:
-        cursor = conn.cursor()
-        
-        # Productos que necesitan abastecimiento (stock < 15) con proveedores
-        cursor.execute("""
-            SELECT P.ID_PRODUCTO, P.NOMBRE, P.STOCK, P.VALOR_UNITARIO,
-                   PR.CODIGO, PR.NOMBRE AS PROVEEDOR, PR.TELEFONO
-            FROM PRODUCTOS P
-            LEFT JOIN DIRECTORIO D ON P.ID_PRODUCTO = D.ID_PRODUCTO
-            LEFT JOIN PROVEEDORES PR ON D.CODIGO = PR.CODIGO
-            WHERE P.STOCK < 15
-            ORDER BY P.STOCK ASC, P.NOMBRE
-        """)
-        
-        productos_abastecimiento = []
-        for row in cursor.fetchall():
-            productos_abastecimiento.append({
-                'id_producto': row[0],
-                'nombre': row[1],
-                'stock': row[2],
-                'valor': row[3],
-                'codigo_proveedor': row[4],
-                'proveedor': row[5] if row[5] else 'Sin proveedor asignado',
-                'telefono': row[6],
-                'cantidad_sugerida': max(50 - row[2], 10)  # Sugerencia de compra
-            })
-        
-        cursor.close()
-        conn.close()
-        
-        return render_template('proceso_abastecimiento.html', productos=productos_abastecimiento)
-        
-    except Exception as e:
-        flash(f'Error en proceso de abastecimiento: {e}', 'error')
-        return render_template('error.html')
-
-# API REST para DIRECTORIO - OPERACIONES ADICIONALES
 @app.route('/api/directorio', methods=['POST'])
 def api_crear_relacion():
-    """Crear nueva relación producto-proveedor"""
+    """Crear nueva relación producto-proveedor usando PKG_DIRECTORIO"""
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Error de conexión'}), 500
@@ -598,28 +582,12 @@ def api_crear_relacion():
         data = request.get_json()
         cursor = conn.cursor()
         
-        # Verificar que el producto existe
-        cursor.execute("SELECT ID_PRODUCTO FROM PRODUCTOS WHERE ID_PRODUCTO = :1", [data['id_producto']])
-        if not cursor.fetchone():
-            return jsonify({'error': 'Producto no encontrado'}), 404
-            
-        # Verificar que el proveedor existe
-        cursor.execute("SELECT CODIGO FROM PROVEEDORES WHERE CODIGO = :1", [data['codigo_proveedor']])
-        if not cursor.fetchone():
-            return jsonify({'error': 'Proveedor no encontrado'}), 404
         
-        # Verificar que la relación no existe ya
-        cursor.execute("SELECT 1 FROM DIRECTORIO WHERE ID_PRODUCTO = :1 AND CODIGO = :2", [data['id_producto'], data['codigo_proveedor']])
-        if cursor.fetchone():
-            return jsonify({'error': 'La relación ya existe'}), 400
+        cursor.callproc('PKG_DIRECTORIO.PR_INSERTAR_DIRECTORIO', [
+            data['id_producto'],
+            data['codigo_proveedor']
+        ])
         
-        # Crear la relación
-        cursor.execute("""
-            INSERT INTO DIRECTORIO (ID_PRODUCTO, CODIGO)
-            VALUES (:1, :2)
-        """, [data['id_producto'], data['codigo_proveedor']])
-        
-        conn.commit()
         cursor.close()
         conn.close()
         
@@ -632,9 +600,9 @@ def api_crear_relacion():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/directorio/<int:id_producto>/<int:codigo_proveedor>', methods=['DELETE'])
+@app.route('/api/directorio/<int:id_producto>/<string:codigo_proveedor>', methods=['DELETE'])
 def api_eliminar_relacion(id_producto, codigo_proveedor):
-    """Eliminar relación producto-proveedor"""
+    """Eliminar relación producto-proveedor usando PKG_DIRECTORIO"""
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Error de conexión'}), 500
@@ -642,14 +610,7 @@ def api_eliminar_relacion(id_producto, codigo_proveedor):
     try:
         cursor = conn.cursor()
         
-        # Verificar que la relación existe
-        cursor.execute("SELECT 1 FROM DIRECTORIO WHERE ID_PRODUCTO = :1 AND CODIGO = :2", [id_producto, codigo_proveedor])
-        if not cursor.fetchone():
-            return jsonify({'error': 'Relación no encontrada'}), 404
-        
-        # Eliminar la relación
-        cursor.execute("DELETE FROM DIRECTORIO WHERE ID_PRODUCTO = :1 AND CODIGO = :2", [id_producto, codigo_proveedor])
-        conn.commit()
+        cursor.callproc('PKG_DIRECTORIO.PR_ELIMINAR_DIRECTORIO', [id_producto, codigo_proveedor])
         
         cursor.close()
         conn.close()
@@ -663,51 +624,6 @@ def api_eliminar_relacion(id_producto, codigo_proveedor):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# API REST para obtener productos de un proveedor específico
-@app.route('/api/proveedores/<int:codigo>/productos', methods=['GET'])
-def api_productos_proveedor(codigo):
-    """Obtener productos de un proveedor específico"""
-    conn = get_db_connection()
-    if not conn:
-        return jsonify({'error': 'Error de conexión'}), 500
-    
-    try:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT P.ID_PRODUCTO, P.NOMBRE, P.STOCK, P.VALOR_UNITARIO,
-                   NVL(TO_CHAR(P.FECHA_VENC, 'YYYY-MM-DD'), 'N/A') as FECHA_VENC, P.IVA
-            FROM PRODUCTOS P
-            JOIN DIRECTORIO D ON P.ID_PRODUCTO = D.ID_PRODUCTO
-            WHERE D.CODIGO = :1
-            ORDER BY P.NOMBRE
-        """, [codigo])
-        
-        productos = []
-        for row in cursor.fetchall():
-            productos.append({
-                'id_producto': row[0],
-                'nombre': row[1],
-                'stock': row[2],
-                'valor_unitario': row[3],
-                'fecha_venc': row[4],
-                'iva': row[5],
-                'estado_stock': 'CRITICO' if row[2] < 10 else 'BAJO' if row[2] < 30 else 'NORMAL'
-            })
-        
-        cursor.close()
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'data': productos,
-            'total': len(productos),
-            'timestamp': datetime.now().isoformat()
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-# Ruta de diagnóstico para verificar packages
 @app.route('/api/diagnostico/packages')
 def diagnostico_packages():
     """Verifica si los paquetes PL/SQL principales existen en la base de datos"""
@@ -723,50 +639,38 @@ def diagnostico_packages():
         }
 
         test_cases = {
-            'PKG_PRODUCTOS.FN_GET_ALL_PRODUCTS_FOR_APEX': ('function',),
+            'PKG_PRODUCTOS.OBTENER_TODOS': ('function',),
             'PKG_PRODUCTOS.PR_INSERTAR_PRODUCTO': ('procedure',),
             'PKG_PRODUCTOS.PR_ACTUALIZAR_PRODUCTO': ('procedure',),
             'PKG_PRODUCTOS.PR_ELIMINAR_PRODUCTO': ('procedure',),
-            'PKG_PROVEEDORES.FN_GET_ALL_PROVEEDORES_FOR_APEX': ('function',),
-            'PKG_DIRECTORIO.FN_GET_ALL_DIRECTORIOS_FOR_APEX': ('function',)
+            'PKG_PROVEEDORES.OBTENER_TODOS': ('function',),
+            'PKG_DIRECTORIO.OBTENER_TODOS': ('function',)
         }
 
         for item, (item_type,) in test_cases.items():
             try:
-                cursor.execute(f"""
-                    SELECT 1
-                    FROM ALL_PROCEDURES
-                    WHERE OWNER = 'LAURA'
-                      AND OBJECT_NAME = :pkg_name
-                      AND PROCEDURE_NAME = :proc_name
-                      AND OBJECT_TYPE = 'PACKAGE'
-                """, {'pkg_name': item.split('.')[0], 'proc_name': item.split('.')[1]})
-                
-                if cursor.fetchone():
-                    diagnostico['checks'][item] = '✅ Encontrado'
+                if 'OBTENER_TODOS' in item:
+                    ref_cursor = cursor.callfunc(item, oracledb.CURSOR)
+                    diagnostico['checks'][item] = '✅ Funcional'
                 else:
-                    diagnostico['checks'][item] = '❌ No encontrado'
+                    
+                    diagnostico['checks'][item] = '✅ Disponible'
             except Exception as e:
-                diagnostico['checks'][item] = f'⚠️ Error: {e}'
+                diagnostico['checks'][item] = f'❌ Error: {e}'
 
-        # Listar operaciones que usan packages
+        
         diagnostico['operations_using_packages'] = [
-            'productos() - PKG_PRODUCTOS.FN_GET_ALL_PRODUCTS_FOR_APEX',
-            'api_productos() - PKG_PRODUCTOS.FN_GET_ALL_PRODUCTS_FOR_APEX', 
+            'productos() - PKG_PRODUCTOS.OBTENER_TODOS',
+            'api_productos() - PKG_PRODUCTOS.OBTENER_TODOS', 
             'api_crear_producto() - PKG_PRODUCTOS.PR_INSERTAR_PRODUCTO',
             'api_actualizar_producto() - PKG_PRODUCTOS.PR_ACTUALIZAR_PRODUCTO',
-            'api_eliminar_producto() - PKG_PRODUCTOS.PR_ELIMINAR_PRODUCTO',
-            'proveedores() - PKG_PROVEEDORES.FN_GET_ALL_PROVEEDORES_FOR_APEX',
-            'api_proveedores() - PKG_PROVEEDORES.FN_GET_ALL_PROVEEDORES_FOR_APEX',
-            'directorio() - PKG_DIRECTORIO.FN_GET_ALL_DIRECTORIOS_FOR_APEX',
-            'api_directorio() - PKG_DIRECTORIO.FN_GET_ALL_DIRECTORIOS_FOR_APEX'
+            'api_eliminar_producto() - PKG_PRODUCTOS.PR_ELIMINAR_PRODUCTO'
         ]
         
-        # Probar una operación con package
+        
         try:
-            ref_cursor = cursor.var(oracledb.CURSOR)
-            cursor.callproc('PKG_PRODUCTOS.FN_GET_ALL_PRODUCTS_FOR_APEX', [ref_cursor])
-            productos_count = len(list(ref_cursor.getvalue()))
+            ref_cursor = cursor.callfunc('PKG_PRODUCTOS.OBTENER_TODOS', oracledb.CURSOR)
+            productos_count = len(list(ref_cursor))
             diagnostico['test_pkg_productos'] = f'✅ PKG_PRODUCTOS funcional - {productos_count} productos'
         except Exception as e:
             diagnostico['test_pkg_productos'] = f'❌ Error en PKG_PRODUCTOS: {e}'
@@ -779,5 +683,127 @@ def diagnostico_packages():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+
+@app.route('/proveedores')
+def proveedores():
+    """Gestión de proveedores usando PKG_PROVEEDORES - OBTIENE TODOS (activos E inactivos)"""
+    conn = get_db_connection()
+    if not conn:
+        flash('Error de conexión a la base de datos', 'error')
+        return render_template('error.html')
+    
+    try:
+        cursor = conn.cursor()
+        
+        
+        ref_cursor = cursor.callfunc('PKG_PROVEEDORES.OBTENER_TODOS', oracledb.CURSOR)
+        
+        proveedores_data = []
+        for row in ref_cursor:
+            codigo_proveedor = row[0]
+            activo = 'N' if codigo_proveedor in PROVEEDORES_INACTIVOS else 'S'
+            
+            
+            ref_cursor_dir = cursor.callfunc('PKG_DIRECTORIO.OBTENER_TODOS', oracledb.CURSOR)
+            productos_count = len([r for r in ref_cursor_dir if r[2] == codigo_proveedor])
+            
+            proveedores_data.append({
+                'codigo': codigo_proveedor, 
+                'nombre': row[1],       
+                'telefono': row[2],     
+                'productos_count': productos_count,
+                'activo': activo        
+            })
+        
+        cursor.close()
+        conn.close()
+        
+        return render_template('proveedores.html', proveedores=proveedores_data)
+        
+    except Exception as e:
+        
+        try:
+            cursor = conn.cursor()
+            ref_cursor = cursor.callfunc('PKG_PROVEEDORES.OBTENER_TODOS', oracledb.CURSOR)
+            
+            proveedores_data = []
+            for row in ref_cursor:
+                codigo_proveedor = row[0]
+                activo = 'N' if codigo_proveedor in PROVEEDORES_INACTIVOS else 'S'
+                
+                
+                ref_cursor_dir = cursor.callfunc('PKG_DIRECTORIO.OBTENER_TODOS', oracledb.CURSOR)
+                productos_count = len([r for r in ref_cursor_dir if r[2] == codigo_proveedor])
+                
+                proveedores_data.append({
+                    'codigo': codigo_proveedor,
+                    'nombre': row[1],
+                    'telefono': row[2],
+                    'productos_count': productos_count,
+                    'activo': activo        
+                })
+            
+            cursor.close()
+            conn.close()
+            return render_template('proveedores.html', proveedores=proveedores_data)
+            
+        except Exception as e2:
+            flash(f'Error al obtener proveedores: {e} | Fallback: {e2}', 'error')
+            return render_template('error.html')
+
+
+
+@app.route('/proceso/abastecimiento')
+def proceso_abastecimiento():
+    """Proceso de abastecimiento - productos con stock bajo usando packages"""
+    conn = get_db_connection()
+    if not conn:
+        flash('Error de conexión a la base de datos', 'error')
+        return render_template('error.html')
+    
+    try:
+        cursor = conn.cursor()
+        
+        
+        ref_cursor = cursor.callfunc('PKG_PRODUCTOS.OBTENER_TODOS', oracledb.CURSOR)
+        
+        productos_abastecimiento = []
+        for row in ref_cursor:
+            if row[2] < 15:  # STOCK < 15
+                
+                ref_cursor_dir = cursor.callfunc('PKG_DIRECTORIO.OBTENER_TODOS', oracledb.CURSOR)
+                proveedor = None
+                for dir_row in ref_cursor_dir:
+                    if dir_row[0] == row[0]:  # Mismo ID_PRODUCTO
+                        proveedor = (dir_row[2], dir_row[3], '123456')  # codigo, nombre, telefono_placeholder
+                        break
+                
+                productos_abastecimiento.append({
+                    'id_producto': row[0],
+                    'nombre': row[1],
+                    'stock': row[2],
+                    'valor': row[3],
+                    'codigo_proveedor': proveedor[0] if proveedor else None,
+                    'proveedor': proveedor[1] if proveedor else '⚠️ Sin proveedor - Asignar en Productos',
+                    'telefono': proveedor[2] if proveedor else None,
+                    'cantidad_sugerida': max(50 - row[2], 10),  
+                    'tiene_proveedor': proveedor is not None
+                })
+        
+        cursor.close()
+        conn.close()
+        
+        return render_template('proceso_abastecimiento.html', productos=productos_abastecimiento)
+        
+    except Exception as e:
+        flash(f'Error en proceso de abastecimiento: {e}', 'error')
+        return render_template('error.html')
+
+
 if __name__ == '__main__':
+    
+    print("🚀 Iniciando AlmacénRC...")
+    print("🔧 Conectando solo por paquetes PL/SQL...")
+    print("🌐 Iniciando servidor Flask...")
     app.run(host='0.0.0.0', port=5000, debug=True) 

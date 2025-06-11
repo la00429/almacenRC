@@ -5,25 +5,52 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h1><i class="fas fa-truck"></i> Gestión de Proveedores</h1>
-    <button class="btn btn-success" onclick="nuevoProveedor()">
+    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#nuevoProveedorModal">
         <i class="fas fa-plus"></i> Nuevo Proveedor
     </button>
+</div>
+
+<!-- Alert de restricciones -->
+<div class="alert alert-info alert-dismissible fade show" role="alert">
+    <i class="fas fa-info-circle"></i>
+    <strong>Restricciones del sistema:</strong> 
+    Nombre máximo 20 caracteres | Teléfono máximo 6 dígitos (999,999) | Código se genera automáticamente
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
 
 <div class="row">
     {% for proveedor in proveedores %}
     <div class="col-md-6 col-lg-4 mb-4">
-        <div class="card h-100">
-            <div class="card-header bg-info text-white">
+        <div class="card h-100 {% if proveedor.activo == 'N' %}border-secondary bg-light{% endif %}">
+            <div class="card-header {% if proveedor.activo == 'N' %}bg-secondary text-white{% else %}bg-info text-white{% endif %}">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
                 <h5 class="mb-0">{{ proveedor.nombre }}</h5>
                 <small>Código: {{ proveedor.codigo }}</small>
+                    </div>
+                    {% if proveedor.activo == 'N' %}
+                        <span class="badge bg-dark">🚫 INACTIVO</span>
+                    {% endif %}
+                </div>
             </div>
             <div class="card-body">
                 <p><i class="fas fa-phone"></i> <strong>Teléfono:</strong> {{ proveedor.telefono }}</p>
                 <p><i class="fas fa-box"></i> <strong>Productos:</strong> {{ proveedor.productos_count }} items</p>
             </div>
             <div class="card-footer">
-                <div class="btn-group w-100">
+                {% if proveedor.activo == 'N' %}
+                    <!-- Proveedor INACTIVO - Solo habilitar y ver productos -->
+                    <div class="btn-group w-100 mb-2">
+                        <button class="btn btn-outline-info btn-sm" onclick="verProductosProveedor('{{ proveedor.codigo }}', '{{ proveedor.nombre }}')">
+                            <i class="fas fa-boxes"></i> Ver Productos
+                        </button>
+                    </div>
+                    <button class="btn btn-success btn-sm w-100" onclick="habilitarProveedor('{{ proveedor.codigo }}', '{{ proveedor.nombre }}')">
+                        <i class="fas fa-check-circle"></i> Habilitar Proveedor
+                    </button>
+                {% else %}
+                    <!-- Proveedor ACTIVO - Funciones normales -->
+                    <div class="btn-group w-100 mb-2">
                     <button class="btn btn-outline-primary btn-sm" onclick="editarProveedor('{{ proveedor.codigo }}', '{{ proveedor.nombre }}', '{{ proveedor.telefono }}')">
                         <i class="fas fa-edit"></i> Editar
                     </button>
@@ -31,75 +58,436 @@
                         <i class="fas fa-boxes"></i> Productos
                     </button>
                 </div>
+                    <button class="btn btn-outline-warning btn-sm w-100" onclick="inhabilitarProveedor('{{ proveedor.codigo }}', '{{ proveedor.nombre }}', {{ proveedor.productos_count }})">
+                        <i class="fas fa-ban"></i> Inhabilitar Proveedor
+                    </button>
+                {% endif %}
             </div>
         </div>
     </div>
     {% endfor %}
 </div>
+
+<!-- Modal para nuevo proveedor -->
+<div class="modal fade" id="nuevoProveedorModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">🆕 Nuevo Proveedor</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="nuevoProveedorForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">🏢 Nombre del Proveedor</label>
+                                <input type="text" class="form-control" name="nombre" id="nuevo_nombre" required maxlength="20" 
+                                       placeholder="Ej: AutoParts S.A." oninput="validarNombre(this)">
+                                <div class="form-text">
+                                    <span id="contador_nombre">0/20</span> caracteres
+                                    <i class="fas fa-exclamation-triangle text-warning ms-2"></i>
+                                    <small>Máximo 20 caracteres</small>
+                                </div>
+                                <div class="invalid-feedback" id="error_nombre"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">📞 Teléfono</label>
+                                <input type="number" class="form-control" name="telefono" id="nuevo_telefono" required 
+                                       min="1" max="999999" placeholder="123456" oninput="validarTelefono(this)">
+                                <div class="form-text">
+                                    <span id="contador_telefono">0/6</span> dígitos
+                                    <i class="fas fa-exclamation-triangle text-warning ms-2"></i>
+                                    <small>Máximo 6 dígitos (1-999,999)</small>
+                                </div>
+                                <div class="invalid-feedback" id="error_telefono"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="alert alert-primary">
+                                <i class="fas fa-info-circle"></i>
+                                <strong>Información:</strong> El código del proveedor se generará automáticamente usando la secuencia SEQ_PROVEEDORES.
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-success" onclick="guardarProveedor()" id="btn_guardar_proveedor" disabled>
+                    <i class="fas fa-save"></i> Guardar Proveedor
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para editar proveedor -->
+<div class="modal fade" id="editarProveedorModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">✏️ Editar Proveedor</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editarProveedorForm">
+                    <input type="hidden" name="codigo" id="edit_codigo">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">🆔 Código</label>
+                                <input type="text" class="form-control" id="edit_codigo_display" readonly>
+                                <div class="form-text">
+                                    <i class="fas fa-lock text-muted"></i>
+                                    <small>El código no se puede modificar</small>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">🏢 Nombre del Proveedor</label>
+                                <input type="text" class="form-control" name="nombre" id="edit_nombre" required maxlength="20" 
+                                       oninput="validarNombreEdit(this)">
+                                <div class="form-text">
+                                    <span id="contador_nombre_edit">0/20</span> caracteres
+                                </div>
+                                <div class="invalid-feedback" id="error_nombre_edit"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">📞 Teléfono</label>
+                                <input type="number" class="form-control" name="telefono" id="edit_telefono" required 
+                                       min="1" max="999999" oninput="validarTelefonoEdit(this)">
+                                <div class="form-text">
+                                    <span id="contador_telefono_edit">0/6</span> dígitos
+                                </div>
+                                <div class="invalid-feedback" id="error_telefono_edit"></div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-primary" onclick="actualizarProveedor()" id="btn_actualizar_proveedor" disabled>
+                    <i class="fas fa-save"></i> Actualizar Proveedor
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-function editarProveedor(codigo, nombre, telefono) {
-    const nuevoNombre = prompt(`✏️ EDITAR PROVEEDOR\n\nCódigo: ${codigo}\nNombre actual: ${nombre}\n\nIngrese el nuevo nombre:`, nombre);
-    const nuevoTelefono = prompt(`📞 Ingrese el nuevo teléfono:`, telefono);
+// ========================================
+// VALIDACIONES EN TIEMPO REAL 
+// ========================================
+
+function validarNombre(input) {
+    const valor = input.value;
+    const contador = document.getElementById('contador_nombre');
+    const error = document.getElementById('error_nombre');
+    const btnGuardar = document.getElementById('btn_guardar_proveedor');
     
-    if (nuevoNombre && nuevoTelefono && (nuevoNombre !== nombre || nuevoTelefono !== telefono)) {
-        // Llamar a la API PUT para actualizar el proveedor usando PKG_PROVEEDORES.PR_ACTUALIZAR_PROVEEDOR
-        fetch(`/api/proveedores/${codigo}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                nombre: nuevoNombre,
-                telefono: nuevoTelefono
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert(`✅ Proveedor actualizado exitosamente!\n\n🆔 Código: ${codigo}\n🏢 Nombre: ${nuevoNombre}\n📞 Teléfono: ${nuevoTelefono}`);
-                // Recargar la página para mostrar los cambios
-                location.reload();
-            } else {
-                alert('❌ Error al actualizar proveedor: ' + data.error);
-            }
-        })
-        .catch(error => {
-            alert('❌ Error de conexión: ' + error.message);
-        });
+    contador.textContent = `${valor.length}/20`;
+    
+    if (valor.length === 0) {
+        input.classList.remove('is-valid', 'is-invalid');
+        error.textContent = '';
+    } else if (valor.length > 20) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        error.textContent = '❌ El nombre no puede exceder 20 caracteres';
+    } else if (valor.length < 3) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        error.textContent = '⚠️ El nombre debe tener al menos 3 caracteres';
+    } else {
+        input.classList.add('is-valid');
+        input.classList.remove('is-invalid');
+        error.textContent = '';
+    }
+    
+    validarFormularioCompleto();
+}
+
+function validarTelefono(input) {
+    const valor = parseInt(input.value) || 0;
+    const contador = document.getElementById('contador_telefono');
+    const error = document.getElementById('error_telefono');
+    
+    contador.textContent = `${input.value.length}/6`;
+    
+    if (input.value === '') {
+        input.classList.remove('is-valid', 'is-invalid');
+        error.textContent = '';
+    } else if (valor < 1) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        error.textContent = '❌ El teléfono debe ser mayor a 0';
+    } else if (valor > 999999) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        error.textContent = '❌ El teléfono no puede exceder 999,999';
+    } else if (input.value.length < 4) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        error.textContent = '⚠️ El teléfono debe tener al menos 4 dígitos';
+    } else {
+        input.classList.add('is-valid');
+        input.classList.remove('is-invalid');
+        error.textContent = '';
+    }
+    
+    validarFormularioCompleto();
+}
+
+function validarFormularioCompleto() {
+    const nombre = document.getElementById('nuevo_nombre');
+    const telefono = document.getElementById('nuevo_telefono');
+    const btnGuardar = document.getElementById('btn_guardar_proveedor');
+    
+    const nombreValido = nombre.classList.contains('is-valid');
+    const telefonoValido = telefono.classList.contains('is-valid');
+    
+    if (nombreValido && telefonoValido) {
+        btnGuardar.disabled = false;
+        btnGuardar.classList.remove('btn-secondary');
+        btnGuardar.classList.add('btn-success');
+    } else {
+        btnGuardar.disabled = true;
+        btnGuardar.classList.remove('btn-success');
+        btnGuardar.classList.add('btn-secondary');
     }
 }
 
-function nuevoProveedor() {
-    const codigo = prompt('🆔 Ingrese el código del proveedor:');
-    const nombre = prompt('🏢 Ingrese el nombre del proveedor:');
-    const telefono = prompt('📞 Ingrese el teléfono:');
+// Validaciones para modal de edición
+function validarNombreEdit(input) {
+    const valor = input.value;
+    const contador = document.getElementById('contador_nombre_edit');
+    const error = document.getElementById('error_nombre_edit');
     
-    if (codigo && nombre && telefono && !isNaN(codigo)) {
-        fetch('/api/proveedores', {
-            method: 'POST',
+    contador.textContent = `${valor.length}/20`;
+    
+    if (valor.length === 0) {
+        input.classList.remove('is-valid', 'is-invalid');
+        error.textContent = '';
+    } else if (valor.length > 20) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        error.textContent = '❌ El nombre no puede exceder 20 caracteres';
+    } else if (valor.length < 3) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        error.textContent = '⚠️ El nombre debe tener al menos 3 caracteres';
+    } else {
+        input.classList.add('is-valid');
+        input.classList.remove('is-invalid');
+        error.textContent = '';
+    }
+    
+    validarFormularioEdicion();
+}
+
+function validarTelefonoEdit(input) {
+    const valor = parseInt(input.value) || 0;
+    const contador = document.getElementById('contador_telefono_edit');
+    const error = document.getElementById('error_telefono_edit');
+    
+    contador.textContent = `${input.value.length}/6`;
+    
+    if (input.value === '') {
+        input.classList.remove('is-valid', 'is-invalid');
+        error.textContent = '';
+    } else if (valor < 1) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        error.textContent = '❌ El teléfono debe ser mayor a 0';
+    } else if (valor > 999999) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        error.textContent = '❌ El teléfono no puede exceder 999,999';
+    } else if (input.value.length < 4) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        error.textContent = '⚠️ El teléfono debe tener al menos 4 dígitos';
+    } else {
+        input.classList.add('is-valid');
+        input.classList.remove('is-invalid');
+        error.textContent = '';
+    }
+    
+    validarFormularioEdicion();
+}
+
+function validarFormularioEdicion() {
+    const nombre = document.getElementById('edit_nombre');
+    const telefono = document.getElementById('edit_telefono');
+    const btnActualizar = document.getElementById('btn_actualizar_proveedor');
+    
+    const nombreValido = nombre.classList.contains('is-valid');
+    const telefonoValido = telefono.classList.contains('is-valid');
+    
+    if (nombreValido && telefonoValido) {
+        btnActualizar.disabled = false;
+        btnActualizar.classList.remove('btn-secondary');
+        btnActualizar.classList.add('btn-primary');
+    } else {
+        btnActualizar.disabled = true;
+        btnActualizar.classList.remove('btn-primary');
+        btnActualizar.classList.add('btn-secondary');
+    }
+}
+
+// ========================================
+// FUNCIONES PRINCIPALES 
+// ========================================
+
+function guardarProveedor() {
+    const form = document.getElementById('nuevoProveedorForm');
+    const formData = new FormData(form);
+    
+    const proveedor = {
+        nombre: formData.get('nombre'),
+        telefono: parseInt(formData.get('telefono'))
+    };
+    
+    // Mostrar loading
+    const btnGuardar = document.getElementById('btn_guardar_proveedor');
+    const textoOriginal = btnGuardar.innerHTML;
+    btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+    btnGuardar.disabled = true;
+    
+    fetch('/api/proveedores', {
+        method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                codigo: parseInt(codigo),
-                nombre: nombre,
-                telefono: parseInt(telefono)
-            })
+        body: JSON.stringify(proveedor)
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert(`✅ Proveedor creado exitosamente!\n\n🏢 ${nombre}\n🆔 Código: ${codigo}\n📞 Teléfono: ${telefono}`);
-                location.reload();
+            // Mostrar modal de éxito
+            const modalExito = `
+                <div class="modal fade" id="exitoModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-success text-white">
+                                <h5 class="modal-title">✅ ¡Proveedor Creado!</h5>
+                            </div>
+                            <div class="modal-body">
+                                <div class="text-center">
+                                    <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                                    <h4>🏢 ${proveedor.nombre}</h4>
+                                    <p><strong>🆔 Código generado:</strong> ${data.codigo_generado}</p>
+                                    <p><strong>📞 Teléfono:</strong> ${proveedor.telefono}</p>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-success" onclick="location.reload()">
+                                    <i class="fas fa-check"></i> ¡Perfecto!
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalExito);
+            const exitoModalElement = new bootstrap.Modal(document.getElementById('exitoModal'));
+            
+            // Cerrar modal de creación
+            const modal = bootstrap.Modal.getInstance(document.getElementById('nuevoProveedorModal'));
+            modal.hide();
+            
+            // Mostrar modal de éxito
+            exitoModalElement.show();
+            
             } else {
-                alert('❌ Error al crear proveedor: ' + data.error);
+            // Mostrar error específico
+            let mensajeError = '❌ Error al crear proveedor: ' + data.error;
+            if (data.error.includes('ORA-20012')) {
+                mensajeError = '❌ Error en la base de datos. Verifique que los datos cumplan las restricciones.';
+            }
+            
+            alert(mensajeError);
+            btnGuardar.innerHTML = textoOriginal;
+            btnGuardar.disabled = false;
             }
         })
         .catch(error => {
             alert('❌ Error de conexión: ' + error.message);
+        btnGuardar.innerHTML = textoOriginal;
+        btnGuardar.disabled = false;
         });
-    } else if (codigo !== null) {
-        alert('❌ Por favor complete todos los campos correctamente');
-    }
+}
+
+function editarProveedor(codigo, nombre, telefono) {
+    // Llenar el modal de edición
+    document.getElementById('edit_codigo').value = codigo;
+    document.getElementById('edit_codigo_display').value = codigo;
+    document.getElementById('edit_nombre').value = nombre;
+    document.getElementById('edit_telefono').value = telefono;
+    
+    // Actualizar contadores
+    document.getElementById('contador_nombre_edit').textContent = `${nombre.length}/20`;
+    document.getElementById('contador_telefono_edit').textContent = `${telefono.toString().length}/6`;
+    
+    // Validar campos iniciales
+    validarNombreEdit(document.getElementById('edit_nombre'));
+    validarTelefonoEdit(document.getElementById('edit_telefono'));
+    
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('editarProveedorModal'));
+    modal.show();
+}
+
+function actualizarProveedor() {
+    const form = document.getElementById('editarProveedorForm');
+    const formData = new FormData(form);
+    
+    const codigo = formData.get('codigo');
+    const proveedor = {
+        nombre: formData.get('nombre'),
+        telefono: parseInt(formData.get('telefono'))
+    };
+    
+    // Mostrar loading
+    const btnActualizar = document.getElementById('btn_actualizar_proveedor');
+    const textoOriginal = btnActualizar.innerHTML;
+    btnActualizar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Actualizando...';
+    btnActualizar.disabled = true;
+    
+    fetch(`/api/proveedores/${codigo}`, {
+        method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(proveedor)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+            alert(`✅ Proveedor actualizado exitosamente!\n\n🆔 Código: ${codigo}\n🏢 Nombre: ${proveedor.nombre}\n📞 Teléfono: ${proveedor.telefono}`);
+                location.reload();
+            } else {
+            alert('❌ Error al actualizar proveedor: ' + data.error);
+            btnActualizar.innerHTML = textoOriginal;
+            btnActualizar.disabled = false;
+            }
+        })
+        .catch(error => {
+            alert('❌ Error de conexión: ' + error.message);
+        btnActualizar.innerHTML = textoOriginal;
+        btnActualizar.disabled = false;
+        });
 }
 
 function verProductosProveedor(codigo, nombre) {
@@ -128,5 +516,92 @@ function verProductosProveedor(codigo, nombre) {
             alert('❌ Error de conexión: ' + error.message);
         });
 }
+
+// ========================================
+// FUNCIONES DE INHABILITACIÓN/REACTIVACIÓN DE PROVEEDORES
+// ========================================
+
+function habilitarProveedor(codigo, nombre) {
+    const mensaje = `✅ CONFIRMAR HABILITACIÓN\n\n🏢 Proveedor: ${nombre} (Código: ${codigo})\n\n¿Habilitar este proveedor?\n\n✅ Volverá a estar activo\n✅ Disponible para asignaciones normales`;
+
+    if (confirm(mensaje)) {
+        // Realizar habilitación
+        console.log('Habilitando proveedor:', codigo, nombre);
+        
+        fetch(`/api/proveedores/${codigo}/reactivar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+            console.log('Respuesta recibida:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Datos:', data);
+            if (data.success) {
+                alert(`✅ Proveedor habilitado exitosamente!\n\n🏢 "${nombre}" ha sido habilitado.\n\n💡 El proveedor ya está disponible para asignaciones normales.`);
+                location.reload();
+            } else {
+                alert('❌ Error al habilitar proveedor: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('❌ Error de conexión: ' + error.message);
+        });
+    }
+}
+
+function inhabilitarProveedor(codigo, nombre, productosCount) {
+    const mensaje = `⚠️ CONFIRMAR INHABILITACIÓN\n\n🏢 Proveedor: ${nombre} (Código: ${codigo})\n📦 Productos asignados: ${productosCount}\n\n¿Inhabilitar este proveedor?\n\n✅ Esta acción es REVERSIBLE\n✅ Se mantiene toda la información\n✅ Se puede reactivar después`;
+
+    if (confirm(mensaje)) {
+        // Realizar inhabilitación
+        console.log('Inhabilitando proveedor:', codigo, nombre);
+        
+        fetch(`/api/proveedores/${codigo}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => {
+            console.log('Respuesta recibida:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Datos:', data);
+            if (data.success) {
+                alert(`✅ Proveedor inhabilitado exitosamente!\n\n🏢 "${nombre}" ha sido inhabilitado.\n\n💡 Para reactivar use el botón "Habilitar".`);
+                location.reload();
+            } else {
+                alert('❌ Error al inhabilitar proveedor: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('❌ Error de conexión: ' + error.message);
+        });
+    }
+}
+
+// Limpiar formulario al cerrar modal
+document.getElementById('nuevoProveedorModal').addEventListener('hidden.bs.modal', function () {
+    const form = document.getElementById('nuevoProveedorForm');
+    form.reset();
+    
+    // Limpiar validaciones
+    document.querySelectorAll('.is-valid, .is-invalid').forEach(el => {
+        el.classList.remove('is-valid', 'is-invalid');
+    });
+    
+    // Resetear contadores
+    document.getElementById('contador_nombre').textContent = '0/20';
+    document.getElementById('contador_telefono').textContent = '0/6';
+    
+    // Resetear botón
+    const btnGuardar = document.getElementById('btn_guardar_proveedor');
+    btnGuardar.disabled = true;
+    btnGuardar.classList.remove('btn-success');
+    btnGuardar.classList.add('btn-secondary');
+});
 </script>
 {% endblock %} 

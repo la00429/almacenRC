@@ -1,32 +1,35 @@
-version: '3.9'
-
 services:
   oracledb:
     build:
-      context: .
+      context: . 
       dockerfile: Dockerfile
+      args: 
+        APP_USER: laura
+        APP_USER_PWD: Laura2004
+        ORACLE_PWD: oracle
+
     container_name: oracledb
     ports:
-      - "${ORACLE_PORT:-1522}:1521"
-      - "${ORACLE_EM_PORT:-8080}:8080"
+      - "${ORACLE_PORT:-1522}:1521" 
+      - "${ORACLE_EM_PORT:-8080}:8080" 
     environment:
-      ORACLE_PWD: oracle
-      ORACLE_DATABASE: XEPDB1
-      ORACLE_CHARACTERSET: AL32UTF8
-      ORACLE_SID: XE
-      ORACLE_PDB: XEPDB1
+      - ORACLE_PWD=${ORACLE_PWD}
+      - APP_USER=${APP_USER}
+      - APP_USER_PWD=${APP_USER_PWD}
+      - ORACLE_DATABASE=${ORACLE_DATABASE}
+      # Variables adicionales necesarias para Oracle XE
+      - ORACLE_CHARACTERSET=${ORACLE_CHARACTERSET}
+      - ORACLE_SID=${ORACLE_SID}
+      - ORACLE_PDB=${ORACLE_PDB}
     volumes:
       - oracle_data:/opt/oracle/oradata
-      - ./db_scripts/scripts:/opt/oracle/scripts/manual/scripts
-      - ./db_scripts/packages:/opt/oracle/scripts/manual/packages
+      - ./db_scripts:/opt/oracle/scripts/manual
     healthcheck:
-      test: ["CMD-SHELL", "sqlplus -s /nolog <<< 'connect sys/oracle@oracledb:1521/XEPDB1 as sysdba; SELECT 1 FROM DUAL; exit;' | grep -q '1' || exit 1"]
+      test: ["CMD-SHELL", "sqlplus -s /nolog <<< 'connect sys/oracle@localhost:1521/XE as sysdba; SELECT 1 FROM DUAL; exit;' | grep -q '1' && echo 'OK' || exit 1"]
       interval: 30s
       timeout: 30s
       retries: 10
       start_period: 10m
-    networks:
-      - almacen_network
 
   flask-web:
     build:
@@ -36,22 +39,16 @@ services:
     ports:
       - "5000:5000"
     depends_on:
-      oracledb:
-        condition: service_healthy
+      - oracledb
     environment:
-      ORACLE_HOST: oracledb
-      ORACLE_PORT: 1521
-      ORACLE_USER: laura
-      ORACLE_PASSWORD: Laura2004
-      ORACLE_DATABASE: XEPDB1
-    networks:
-      - almacen_network
-
-networks:
-  almacen_network:
-    driver: bridge
+      - ORACLE_HOST=oracledb
+      - ORACLE_PORT=1521
+      - ORACLE_USER=laura
+      - ORACLE_PASSWORD=Laura2004
+      - ORACLE_DATABASE=XEPDB1
+      - FLASK_DEBUG=False
+      - FLASK_ENV=production
 
 volumes:
   oracle_data:
     driver: local
-  

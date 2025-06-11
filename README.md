@@ -1,101 +1,266 @@
-# 🗄️ AlmacenRC - Sistema de Gestión de Almacén
+# AlmacénRC - Sistema de Gestión de Almacén
 
-Sistema completo de gestión de almacén con backend en **Oracle Database 21c** y una interfaz web con **Flask**.
+Sistema integral de gestión de almacén desarrollado con Flask y Oracle Database, diseñado para la administración eficiente de productos, proveedores y procesos de abastecimiento.
 
-## 🚀 Arquitectura
+## Características Principales
 
-- **Backend**: Base de datos Oracle XE 21c con tablas, paquetes PL/SQL y lógica de negocio.
-- **Interfaz Web**: Aplicación Flask para visualizar y gestionar el inventario.
-- **Orquestación**: Docker y Docker Compose para un despliegue sencillo y consistente.
+- **Gestión de Productos**: Creación, actualización y administración completa de inventario
+- **Gestión de Proveedores**: Manejo de información de proveedores y relaciones comerciales
+- **Eliminación Lógica**: Sistema de habilitación/inhabilitación sin pérdida de datos
+- **Proceso de Abastecimiento**: Identificación automática de productos con stock bajo
+- **Dashboard Ejecutivo**: Métricas y KPIs del estado del almacén
+- **API REST**: Endpoints completos para integración con sistemas externos
+- **Arquitectura PL/SQL**: Todas las operaciones de base de datos mediante packages PL/SQL
 
-## ✨ Características
+## Arquitectura Técnica
 
-- **Dashboard Interactivo**: Métricas clave como total de productos, alertas de stock bajo y valor del inventario.
-- **Gestión de Productos**: Visualiza, añade, actualiza y elimina productos.
-- **Gestión de Proveedores**: Administra la información de los proveedores.
-- **Directorio de Abastecimiento**: Asigna productos a proveedores para optimizar la cadena de suministro.
-- **API RESTful**: Endpoints para interactuar con la base de datos de forma programática.
+### Backend
+- **Framework**: Flask (Python 3.11)
+- **Base de Datos**: Oracle Database 21c Express Edition
+- **ORM**: Conexión directa con oracledb
+- **Arquitectura**: Microservicios con Docker
 
-## ⚡ Inicio Rápido
+### Frontend
+- **Templates**: Jinja2 con Bootstrap
+- **JavaScript**: Vanilla JS para interactividad
+- **Estilo**: CSS responsivo y moderno
 
-### Prerrequisitos
+### Base de Datos
+- **Packages PL/SQL**: PKG_PRODUCTOS, PKG_PROVEEDORES, PKG_DIRECTORIO
+- **Secuencias**: Generación automática de IDs
+- **Eliminación Lógica**: Sistema de estado en memoria Flask
+
+## Requisitos del Sistema
+
 - Docker y Docker Compose
-- 4GB de RAM disponible
-- Puertos `1522` (Oracle) y `5000` (Web) libres
+- Python 3.11+ (para desarrollo local)
+- Oracle Database 21c XE
+- 4GB RAM mínimo
+- 10GB espacio en disco
 
-### ⚙️ Instalación
+## Instalación y Despliegue
 
-1.  **Clonar el repositorio**:
-    ```bash
-    git clone <repository-url>
-    cd almacenRC
-    ```
+### Usando Docker (Recomendado)
 
-2.  **Levantar los servicios con Docker Compose**:
-    ```bash
-    docker-compose up --build -d
-    ```
-    Este comando construirá las imágenes y ejecutará la base de datos Oracle y la aplicación web en segundo plano.
+1. **Clonar el repositorio**
+```bash
+git clone <repository-url>
+cd almacenRC
+```
 
-3.  **Inicializar la Base de Datos**:
-    Usa el script `init_oracle.sh` para configurar la base de datos por primera vez.
-    ```bash
-    ./init_oracle.sh full
-    ```
-    Este proceso puede tardar varios minutos la primera vez mientras se descarga y configura Oracle.
+2. **Configurar variables de entorno**
+```bash
+cp .env.example .env
+# Editar .env con los valores apropiados
+```
 
-4.  **Acceder a la Aplicación**:
-    - **Interfaz Web**: [http://localhost:5000](http://localhost:5000)
-    - **Base de Datos**: Conecta tu cliente SQL a `localhost:1522` (Servicio `XEPDB1`).
+3. **Construir y ejecutar**
+```bash
+docker-compose up --build
+```
 
-## 🛠️ Uso del Script `init_oracle.sh`
+4. **Acceder a la aplicación**
+- **Aplicación Web**: http://localhost:5000
+- **Oracle Enterprise Manager**: http://localhost:8080
 
-Este script simplifica la interacción con el contenedor de Oracle.
+### Desarrollo Local
 
-| Comando | Descripción |
-| :--- | :--- |
-| **`./init_oracle.sh full`** | **(Recomendado)** Ejecuta la configuración completa: reconstruye, crea usuario, tablas y paquetes. |
-| `./init_oracle.sh status` | Verifica si Oracle está funcionando correctamente. |
-| `./init_oracle.sh connect`| Inicia una sesión SQL*Plus interactiva con el usuario `LAURA`. |
-| `./init_oracle.sh rebuild`| Detiene y reconstruye el contenedor de Oracle, útil si algo sale mal. |
-| `./init_oracle.sh logs` | Muestra los logs del contenedor de Oracle para depuración. |
+1. **Configurar entorno Python**
+```bash
+cd flask-web
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# venv\Scripts\activate   # Windows
+pip install -r requirements.txt
+```
 
-Para el uso diario, los comandos más comunes son `status` y `connect`. Si la base de datos no responde, `rebuild` es la solución más fiable.
+2. **Configurar base de datos Oracle**
+```bash
+# Asegurar que Oracle esté ejecutándose
+# Ejecutar scripts de base de datos manualmente
+```
 
-## 🔐 Credenciales de Conexión
+3. **Ejecutar aplicación Flask**
+```bash
+python app.py
+```
 
-| Servicio | Usuario | Contraseña | DSN/Conexión |
-| :--- | :--- | :--- | :--- |
-| **Base de Datos (App)** | `laura` | `Laura2004` | `localhost:1522/XEPDB1` |
-| **Base de Datos (Admin)**| `sys` | `oracle` | `localhost:1522/XE` |
-| **Interfaz Web** | N/A | N/A | `http://localhost:5000` |
-
-## 🗂️ Estructura del Proyecto
+## Estructura del Proyecto
 
 ```
 almacenRC/
-├── docker-compose.yml     # Orquesta los servicios de Oracle y Flask
-├── init_oracle.sh         # Script para gestionar la base de datos
-├── db_scripts/            # Todos los scripts SQL para Oracle
-│   ├── scripts/           # Creación de tablas, inserción de datos, etc.
-│   └── packages/          # Lógica de negocio en paquetes PL/SQL
-├── flask-web/             # Código fuente de la aplicación web
-│   ├── app.py             # Lógica principal de Flask
-│   ├── templates/         # Plantillas HTML
-│   └── Dockerfile         # Dockerfile para el servicio web
-└── README.md              # Este archivo
+├── flask-web/                 # Aplicación Flask
+│   ├── app.py                # Aplicación principal
+│   ├── templates/            # Templates HTML
+│   ├── requirements.txt      # Dependencias Python
+│   └── Dockerfile           # Imagen Docker Flask
+├── db_scripts/              # Scripts de base de datos
+│   ├── packages/            # Packages PL/SQL
+│   ├── sequences/           # Secuencias Oracle
+│   └── scripts/             # Scripts de inicialización
+├── docker-compose.yml       # Configuración Docker
+├── Dockerfile              # Imagen Docker Oracle
+├── init_oracle.sh          # Script de inicialización Oracle
+└── README.md               # Documentación
 ```
 
-## 🚨 Resolución de Problemas Comunes
+## API REST
 
-- **`./init_oracle.sh` no funciona**: Asegúrate de que tenga permisos de ejecución (`chmod +x init_oracle.sh`).
-- **Error de conexión a la base de datos**:
-    1.  Verifica el estado con `./init_oracle.sh status`.
-    2.  Si no responde, revisa los logs con `./init_oracle.sh logs`.
-    3.  Como último recurso, reconstruye la base de datos con `./init_oracle.sh rebuild` y luego ejecuta `./init_oracle.sh setup`.
-- **La web (`localhost:5000`) no carga**:
-    1.  Asegúrate de que los contenedores estén corriendo con `docker ps`.
-    2.  Revisa los logs del servicio web: `docker-compose logs flask-web`.
+### Productos
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/productos` | Obtener todos los productos |
+| POST | `/api/productos` | Crear nuevo producto |
+| GET | `/api/productos/{id}` | Obtener producto específico |
+| PUT | `/api/productos/{id}` | Actualizar producto |
+| DELETE | `/api/productos/{id}` | Inhabilitar producto |
+| POST | `/api/productos/{id}/reactivar` | Reactivar producto |
+
+### Proveedores
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/proveedores` | Obtener todos los proveedores |
+| POST | `/api/proveedores` | Crear nuevo proveedor |
+| PUT | `/api/proveedores/{codigo}` | Actualizar proveedor |
+| DELETE | `/api/proveedores/{codigo}` | Inhabilitar proveedor |
+| POST | `/api/proveedores/{codigo}/reactivar` | Reactivar proveedor |
+| GET | `/api/proveedores/{codigo}/productos` | Productos del proveedor |
+
+### Directorio
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/directorio` | Obtener relaciones producto-proveedor |
+| POST | `/api/directorio` | Crear nueva relación |
+| DELETE | `/api/directorio/{producto}/{proveedor}` | Eliminar relación |
+
+## Funcionalidades del Sistema
+
+### Dashboard
+- Métricas generales del almacén
+- Productos con stock crítico
+- Valor total del inventario
+- Estado de proveedores
+
+### Gestión de Productos
+- CRUD completo de productos
+- Control de stock y fechas de vencimiento
+- Estados: CRÍTICO (< 10), BAJO (< 30), NORMAL
+- Eliminación lógica (habilitar/inhabilitar)
+
+### Gestión de Proveedores
+- CRUD completo de proveedores
+- Relación con productos
+- Eliminación lógica
+- Conteo automático de productos asociados
+
+### Proceso de Abastecimiento
+- Identificación automática de productos con stock bajo
+- Sugerencias de cantidad a comprar
+- Información de contacto de proveedores
+- Alertas de productos sin proveedor asignado
+
+## Despliegue en VPS
+
+### Especificaciones del Servidor
+- **Servidor**: Ubuntu Server 
+- **Recursos**: 2 vCPUs, 8GB RAM mínimo
+- **Ubicación del proyecto**: ~/almacenRC
+
+### Preparación del VPS
+
+1. **Instalar dependencias**
+```bash
+apt update && apt upgrade -y
+apt install -y docker.io docker-compose git
+```
+
+2. **Configurar firewall**
+```bash
+ufw allow ssh
+ufw allow 5000/tcp    # Aplicación Flask
+ufw allow 1522/tcp    # Oracle Database
+ufw enable
+```
+
+### Despliegue
+
+1. **Clonar y configurar**
+```bash
+cd ~
+git clone <repository-url> almacenRC
+cd almacenRC
+```
+
+2. **Variables de entorno**
+```bash
+# Crear .env para producción
+cp docker-compose.yml docker-compose.prod.yml
+# Editar variables de producción según necesidades
+```
+
+3. **Ejecutar aplicación**
+```bash
+docker-compose up -d
+docker-compose logs -f
+```
+
+### Comandos Útiles
+
+```bash
+# Ver estado
+docker-compose ps
+
+# Ver logs
+docker-compose logs flask-web
+docker-compose logs oracledb
+
+# Reiniciar
+docker-compose restart
+
+# Actualizar aplicación
+git pull
+docker-compose down
+docker-compose up -d --build
+
+# Limpiar sistema
+docker system prune -f
+```
+
+### Backup Básico
+
+```bash
+# Backup de base de datos
+docker exec oracledb expdp laura/Laura2004@XEPDB1 directory=DATA_PUMP_DIR dumpfile=backup.dmp
+
+# Backup de código
+tar -czf backup_code.tar.gz ~/almacenRC
+```
+
+## Configuración de Producción
+
+### Variables de Entorno
+```bash
+# Oracle Database
+ORACLE_PWD=<password>
+APP_USER=laura
+APP_USER_PWD=<password>
+ORACLE_DATABASE=XEPDB1
+
+# Flask
+FLASK_DEBUG=False
+FLASK_ENV=production
+
+# Puertos
+ORACLE_PORT=1522
+ORACLE_EM_PORT=8080
+```
+
+## Licencia
+
+Este proyecto es de uso interno para fines educativos y de desarrollo.
+
 
 ---
-_Este `README` fue actualizado para reflejar la nueva estructura y simplificar las instrucciones._ 

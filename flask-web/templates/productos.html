@@ -10,135 +10,271 @@
     </button>
 </div>
 
+<!-- Alert de restricciones -->
+<div class="alert alert-info alert-dismissible fade show" role="alert">
+    <i class="fas fa-info-circle"></i>
+    <strong>Restricciones del sistema:</strong> 
+    Nombre máximo 30 caracteres | Stock máximo 999 unidades | Precio máximo $999,999 | ID se genera automáticamente
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+
 <!-- Filtros y búsqueda -->
 <div class="card mb-4">
     <div class="card-body">
-        <div class="row">
-            <div class="col-md-6">
+        <div class="row g-3 align-items-center">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
                 <input type="text" id="searchInput" class="form-control" placeholder="Buscar producto...">
+                </div>
             </div>
             <div class="col-md-3">
-                <select id="stockFilter" class="form-select">
-                    <option value="">Todos los stocks</option>
-                    <option value="CRITICO">Stock crítico</option>
-                    <option value="BAJO">Stock bajo</option>
-                    <option value="NORMAL">Stock normal</option>
+                <select class="form-select" id="stockFilter">
+                    <option value="">🔍 Filtrar por Stock</option>
+                    <option value="critico">🚨 Crítico (&lt; 10)</option>
+                    <option value="bajo">⚠️ Bajo (10-29)</option>
+                    <option value="normal">✅ Normal (≥ 30)</option>
                 </select>
             </div>
             <div class="col-md-3">
-                <button class="btn btn-primary w-100" onclick="aplicarFiltros()">
-                    <i class="fas fa-filter"></i> Filtrar
+                <select class="form-select" id="estadoFilter">
+                    <option value="">📊 Filtrar por Estado</option>
+                    <option value="CRITICO">🚨 Crítico</option>
+                    <option value="BAJO">⚠️ Bajo</option>
+                    <option value="NORMAL">✅ Normal</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-outline-secondary w-100" onclick="limpiarFiltrosProductos()">
+                    <i class="fas fa-times"></i> Limpiar
                 </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Tabla de productos -->
-<div class="card">
-    <div class="card-header">
-        <h5 class="mb-0">Lista de Productos ({{ productos|length }} encontrados)</h5>
-    </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover" id="productosTable">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Nombre</th>
-                        <th>Stock</th>
-                        <th>Precio</th>
-                        <th>Vencimiento</th>
-                        <th>IVA</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
+<!-- Grid de productos -->
+<div class="row" id="productosGrid">
                     {% for producto in productos %}
-                    <tr class="{{ producto.estado|lower }}-stock">
-                        <td>{{ producto.id }}</td>
-                        <td>{{ producto.nombre }}</td>
-                        <td>
-                            <span class="badge {% if producto.estado == 'CRITICO' %}bg-danger{% elif producto.estado == 'BAJO' %}bg-warning text-dark{% else %}bg-success{% endif %}">
-                                {{ producto.stock }} unidades
+    <div class="col-md-6 col-lg-4 mb-4 producto-card" data-nombre="{{ producto.nombre|lower }}" data-stock="{{ producto.stock }}" data-estado="{{ producto.estado }}" data-activo="{{ producto.activo }}">
+        <div class="card h-100 {% if producto.activo == 'N' %}border-secondary bg-light{% elif producto.estado == 'CRITICO' %}border-danger{% elif producto.estado == 'BAJO' %}border-warning{% else %}border-success{% endif %}">
+            <div class="card-header {% if producto.activo == 'N' %}bg-secondary text-white{% elif producto.estado == 'CRITICO' %}bg-danger text-white{% elif producto.estado == 'BAJO' %}bg-warning{% else %}bg-success text-white{% endif %}">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">📦 ID: {{ producto.id }}</h6>
+                    <div>
+                        {% if producto.activo == 'N' %}
+                            <span class="badge bg-dark">🚫 INACTIVO</span>
+                        {% else %}
+                            <span class="badge {% if producto.estado == 'CRITICO' %}bg-light text-danger{% elif producto.estado == 'BAJO' %}bg-dark{% else %}bg-light text-success{% endif %}">
+                                {% if producto.estado == 'CRITICO' %}🚨 CRÍTICO{% elif producto.estado == 'BAJO' %}⚠️ BAJO{% else %}✅ NORMAL{% endif %}
                             </span>
-                        </td>
-                        <td>${{ "{:,.0f}".format(producto.precio) }}</td>
-                        <td>{{ producto.vencimiento or 'N/A' }}</td>
-                        <td>{{ producto.iva }}%</td>
-                        <td>
-                            {% if producto.estado == 'CRITICO' %}
-                                <span class="badge bg-danger">CRÍTICO</span>
-                            {% elif producto.estado == 'BAJO' %}
-                                <span class="badge bg-warning text-dark">BAJO</span>
-                            {% else %}
-                                <span class="badge bg-success">NORMAL</span>
                             {% endif %}
-                        </td>
-                        <td>
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-outline-primary" onclick="editarProducto({{ producto.id }})">
-                                    <i class="fas fa-edit"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <h5 class="card-title text-truncate" title="{{ producto.nombre }}">
+                    📝 {{ producto.nombre }}
+                </h5>
+                <div class="mb-3">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="border rounded p-2">
+                                <i class="fas fa-boxes text-primary"></i>
+                                <br><strong>{{ producto.stock }}</strong>
+                                <br><small class="text-muted">Stock</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border rounded p-2">
+                                <i class="fas fa-dollar-sign text-success"></i>
+                                <br><strong>${{ "{:,.0f}".format(producto.precio) }}</strong>
+                                <br><small class="text-muted">Precio</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            📅 Venc: {{ producto.vencimiento or 'N/A' }} | 
+                            🧾 IVA: {{ producto.iva }}%
+                        </small>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                {% if producto.activo == 'N' %}
+                    <!-- Producto INACTIVO - Solo habilitar y ver detalles -->
+                    <div class="btn-group w-100 mb-2">
+                        <button class="btn btn-outline-info btn-sm" onclick="verDetalles('{{ producto.id }}')">
+                            <i class="fas fa-eye"></i> Ver Detalles
+                        </button>
+                    </div>
+                    <button class="btn btn-success btn-sm w-100" onclick="habilitarProducto('{{ producto.id }}', '{{ producto.nombre }}')">
+                        <i class="fas fa-check-circle"></i> Habilitar Producto
                                 </button>
-                                <button class="btn btn-outline-info" onclick="verDetalles({{ producto.id }})">
-                                    <i class="fas fa-eye"></i>
+                {% else %}
+                    <!-- Producto ACTIVO - Funciones normales -->
+                    <div class="btn-group w-100 mb-2">
+                        <button class="btn btn-outline-primary btn-sm" onclick="editarProducto('{{ producto.id }}', '{{ producto.nombre }}')">
+                            <i class="fas fa-edit"></i> Editar
                                 </button>
-                                <button class="btn btn-outline-warning" onclick="ajustarStock({{ producto.id }})">
-                                    <i class="fas fa-warehouse"></i>
+                        <button class="btn btn-outline-info btn-sm" onclick="verDetalles('{{ producto.id }}')">
+                            <i class="fas fa-eye"></i> Detalles
                                 </button>
                             </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                    <button class="btn btn-outline-danger btn-sm w-100" onclick="inhabilitarProducto('{{ producto.id }}', '{{ producto.nombre }}')">
+                        <i class="fas fa-ban"></i> Inhabilitar Producto
+                    </button>
+                {% endif %}
+            </div>
         </div>
     </div>
+    {% endfor %}
+</div>
+
+<!-- Mensaje cuando no hay resultados -->
+<div id="noResultsProductos" class="text-center py-5" style="display: none;">
+    <i class="fas fa-search fa-3x text-muted mb-3"></i>
+    <h4 class="text-muted">No se encontraron productos</h4>
+    <p class="text-muted">Prueba ajustando los filtros de búsqueda</p>
 </div>
 
 <!-- Modal para nuevo producto -->
 <div class="modal fade" id="addProductModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Nuevo Producto</h5>
+                <h5 class="modal-title">🆕 Nuevo Producto</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="addProductForm">
+                    <div class="row">
+                        <div class="col-md-6">
                     <div class="mb-3">
-                        <label class="form-label">ID Producto</label>
-                        <input type="number" class="form-control" name="id_producto" required>
+                                <label class="form-label">📝 Nombre</label>
+                                <input type="text" class="form-control" name="nombre" required maxlength="30" 
+                                       placeholder="Ej: Aceite de Motor 5W30" oninput="validarNombreProducto(this); validarFormularioProducto();">
+                                <div class="form-text">
+                                    <span id="contador_nombre_producto">0/30</span> caracteres
+                                    <i class="fas fa-exclamation-triangle text-warning ms-2"></i>
+                                    <small>Máximo 30 caracteres</small>
+                                </div>
+                                <div class="invalid-feedback" id="error_nombre_producto"></div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Nombre</label>
-                        <input type="text" class="form-control" name="nombre" required>
+                                <label class="form-label">📦 Stock Inicial</label>
+                                <input type="number" class="form-control" name="stock" required min="0" max="999" 
+                                       placeholder="0" oninput="validarStockProducto(this); validarFormularioProducto();">
+                                <div class="form-text">
+                                    <i class="fas fa-exclamation-triangle text-warning ms-2"></i>
+                                    <small>Máximo 999 unidades (3 dígitos)</small>
+                                </div>
+                                <div class="invalid-feedback" id="error_stock_producto"></div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Stock Inicial</label>
-                        <input type="number" class="form-control" name="stock" required>
+                                <label class="form-label">💰 Precio Unitario</label>
+                                <input type="number" class="form-control" name="valor_unitario" step="0.01" required min="0" max="999999" 
+                                       placeholder="0.00" oninput="validarPrecioProducto(this); validarFormularioProducto();">
+                                <div class="form-text">
+                                    <i class="fas fa-exclamation-triangle text-warning ms-2"></i>
+                                    <small>Máximo $999,999 (6 dígitos)</small>
+                                </div>
+                                <div class="invalid-feedback" id="error_precio_producto"></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">📅 Fecha Vencimiento</label>
+                                <input type="date" class="form-control" name="fecha_venc">
+                                <div class="form-text">Opcional - solo para productos perecederos</div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Precio Unitario</label>
-                        <input type="number" class="form-control" name="valor_unitario" step="0.01" required>
+                                <label class="form-label">🧾 IVA (%)</label>
+                                <select class="form-select" name="iva" required>
+                                    <option value="0">0% - Exento</option>
+                                    <option value="19" selected>19% - Gravado</option>
+                                </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Fecha Vencimiento</label>
-                        <input type="date" class="form-control" name="fecha_venc">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">IVA (%)</label>
-                        <select class="form-select" name="iva" required>
-                            <option value="0">0%</option>
-                            <option value="19" selected>19%</option>
-                        </select>
+                                <label class="form-label">🚚 Proveedor Principal</label>
+                                <select class="form-select" name="codigo_proveedor" id="proveedorSelect">
+                                    <option value="">⏳ Cargando proveedores...</option>
+                                </select>
+                                <div class="form-text">Opcional - se puede asignar después</div>
+                            </div>
+                        </div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-success" onclick="guardarProducto()">Guardar</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-success" onclick="guardarProducto()">
+                    <i class="fas fa-save"></i> Guardar Producto
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para editar producto -->
+<div class="modal fade" id="editProductModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">✏️ Editar Producto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editProductForm">
+                    <input type="hidden" name="id_producto" id="edit_id_producto">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">📝 Nombre</label>
+                                <input type="text" class="form-control" name="nombre" id="edit_nombre" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">📦 Stock</label>
+                                <input type="number" class="form-control" name="stock" id="edit_stock" required min="0">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">💰 Precio Unitario</label>
+                                <input type="number" class="form-control" name="valor_unitario" id="edit_valor_unitario" step="0.01" required min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">📅 Fecha Vencimiento</label>
+                                <input type="date" class="form-control" name="fecha_venc" id="edit_fecha_venc">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">🧾 IVA (%)</label>
+                                <select class="form-select" name="iva" id="edit_iva" required>
+                                    <option value="0">0% - Exento</option>
+                                    <option value="19">19% - Gravado</option>
+                                </select>
+                    </div>
+                    <div class="mb-3">
+                                <label class="form-label">🚚 Proveedor Principal</label>
+                                <select class="form-select" name="codigo_proveedor" id="edit_proveedorSelect">
+                                    <option value="">Sin proveedor asignado</option>
+                        </select>
+                                <div class="form-text">Cambiar proveedor actual</div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-primary" onclick="actualizarProducto()">
+                    <i class="fas fa-save"></i> Actualizar Producto
+                </button>
             </div>
         </div>
     </div>
@@ -175,37 +311,123 @@
 
 {% block scripts %}
 <script>
-function aplicarFiltros() {
-    const searchText = document.getElementById('searchInput').value.toLowerCase();
-    const stockFilter = document.getElementById('stockFilter').value;
-    const table = document.getElementById('productosTable');
-    const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+// ========================================
+// VALIDACIONES DE PRODUCTOS
+// ========================================
+
+function validarNombreProducto(input) {
+    const valor = input.value;
+    const contador = document.getElementById('contador_nombre_producto');
+    const error = document.getElementById('error_nombre_producto');
     
-    for (let row of rows) {
-        const nombre = row.cells[1].textContent.toLowerCase();
-        const estado = row.classList.contains('critico-stock') ? 'CRITICO' : 
-                      row.classList.contains('bajo-stock') ? 'BAJO' : 'NORMAL';
-        
-        const matchSearch = nombre.includes(searchText);
-        const matchFilter = !stockFilter || estado === stockFilter;
-        
-        row.style.display = (matchSearch && matchFilter) ? '' : 'none';
+    if (contador) contador.textContent = `${valor.length}/30`;
+    
+    if (valor.length === 0) {
+        input.classList.remove('is-valid', 'is-invalid');
+        if (error) error.textContent = '';
+    } else if (valor.length > 30) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        if (error) error.textContent = '❌ El nombre no puede exceder 30 caracteres';
+    } else if (valor.length < 3) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        if (error) error.textContent = '⚠️ El nombre debe tener al menos 3 caracteres';
+    } else {
+        input.classList.add('is-valid');
+        input.classList.remove('is-invalid');
+        if (error) error.textContent = '';
     }
 }
 
-function editarProducto(id) {
+function validarStockProducto(input) {
+    const valor = parseInt(input.value) || 0;
+    const error = document.getElementById('error_stock_producto');
+    
+    if (input.value === '') {
+        input.classList.remove('is-valid', 'is-invalid');
+        if (error) error.textContent = '';
+    } else if (valor < 0) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        if (error) error.textContent = '❌ El stock no puede ser negativo';
+    } else if (valor > 999) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        if (error) error.textContent = '❌ El stock no puede exceder 999 unidades';
+    } else {
+        input.classList.add('is-valid');
+        input.classList.remove('is-invalid');
+        if (error) error.textContent = '';
+    }
+}
+
+function validarPrecioProducto(input) {
+    const valor = parseFloat(input.value) || 0;
+    const error = document.getElementById('error_precio_producto');
+    
+    if (input.value === '') {
+        input.classList.remove('is-valid', 'is-invalid');
+        if (error) error.textContent = '';
+    } else if (valor <= 0) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        if (error) error.textContent = '❌ El precio debe ser mayor a 0';
+    } else if (valor > 999999) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        if (error) error.textContent = '❌ El precio no puede exceder $999,999';
+    } else {
+        input.classList.add('is-valid');
+        input.classList.remove('is-invalid');
+        if (error) error.textContent = '';
+    }
+}
+function aplicarFiltros() {
+    const searchText = document.getElementById('searchInput').value.toLowerCase();
+    const stockFilter = document.getElementById('stockFilter').value;
+    const estadoFilter = document.getElementById('estadoFilter').value;
+    const productosGrid = document.getElementById('productosGrid');
+    const rows = productosGrid.getElementsByClassName('producto-card');
+    
+    for (let row of rows) {
+        const nombre = row.getAttribute('data-nombre');
+        const stock = row.getAttribute('data-stock');
+        const estado = row.getAttribute('data-estado');
+        
+        const matchSearch = nombre.includes(searchText);
+        const matchFilter = !stockFilter || stockFilter === 'critico' && parseInt(stock) < 10 ||
+                          stockFilter === 'bajo' && parseInt(stock) >= 10 && parseInt(stock) <= 29 ||
+                          stockFilter === 'normal' && parseInt(stock) >= 30;
+        
+        const matchEstado = !estadoFilter || estado === estadoFilter;
+        
+        row.style.display = (matchSearch && matchFilter && matchEstado) ? '' : 'none';
+    }
+}
+
+function editarProducto(id, nombre) {
+    // Cargar datos del producto y abrir modal de edición
     fetch(`/api/productos/${id}`)
         .then(response => response.json())
         .then(data => {
             if (data.success && data.data) {
                 const producto = data.data;
-                const detalles = `PRODUCTO ID: ${id}\n\nNombre actual: ${producto.nombre}\nStock: ${producto.stock}\nPrecio: $${producto.valor_unitario}\nVencimiento: ${producto.fecha_venc || 'N/A'}\n\n¿Desea editarlo?`;
-                if (confirm(detalles)) {
-                    const nuevoNombre = prompt('Nuevo nombre:', producto.nombre);
-                    if (nuevoNombre && nuevoNombre !== producto.nombre) {
-                        alert('✅ Funcionalidad de edición en desarrollo\nNuevo nombre sería: ' + nuevoNombre);
-                    }
-                }
+                
+                // Llenar el formulario de edición
+                document.getElementById('edit_id_producto').value = producto.id_producto;
+                document.getElementById('edit_nombre').value = producto.nombre;
+                document.getElementById('edit_stock').value = producto.stock;
+                document.getElementById('edit_valor_unitario').value = producto.valor_unitario;
+                document.getElementById('edit_fecha_venc').value = producto.fecha_venc || '';
+                document.getElementById('edit_iva').value = producto.iva;
+                
+                // Cargar proveedores y seleccionar el actual
+                cargarProveedoresParaEdicion(producto.id_producto);
+                
+                // Mostrar modal
+                const modal = new bootstrap.Modal(document.getElementById('editProductModal'));
+                modal.show();
             }
         })
         .catch(() => alert('❌ Error al obtener datos del producto'));
@@ -236,7 +458,7 @@ ${p.estado_stock === 'CRITICO' ? '🚨 ¡ATENCIÓN! Stock crítico' : ''}
         .catch(() => alert('❌ Error al obtener detalles'));
 }
 
-function ajustarStock(id) {
+function ajustarStock(id, nombre, stockActual) {
     const nuevoStock = prompt('📦 Ingrese el nuevo stock para el producto ID ' + id + ':');
     if (nuevoStock !== null && !isNaN(nuevoStock) && nuevoStock >= 0) {
         // FUNCIONALIDAD REAL - actualizar via API
@@ -267,7 +489,6 @@ function guardarProducto() {
     const formData = new FormData(form);
     
     const producto = {
-        id_producto: parseInt(formData.get('id_producto')),
         id_marca: 1, // Marca por defecto
         nombre: formData.get('nombre'),
         stock: parseInt(formData.get('stock')),
@@ -276,13 +497,20 @@ function guardarProducto() {
         iva: parseInt(formData.get('iva'))
     };
     
+    const proveedorSeleccionado = formData.get('codigo_proveedor');
+    
     // Validación básica
-    if (!producto.id_producto || !producto.nombre || producto.stock === null || !producto.valor_unitario) {
+    if (!producto.nombre || producto.stock === null || !producto.valor_unitario) {
         alert('❌ Por favor complete todos los campos obligatorios');
         return;
     }
     
     // FUNCIONALIDAD REAL - crear via API
+    // Agregar proveedor al producto directamente
+    if (proveedorSeleccionado) {
+        producto.codigo_proveedor = proveedorSeleccionado;
+    }
+    
     fetch('/api/productos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -291,15 +519,46 @@ function guardarProducto() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert(`✅ Producto creado exitosamente!\n\n📦 ${producto.nombre}\n🆔 ID: ${producto.id_producto}\n📊 Stock: ${producto.stock}\n💰 Precio: $${producto.valor_unitario}\n📅 Vencimiento: ${producto.fecha_venc || 'No especificado'}`);
+            const idProductoGenerado = data.id_producto_generado;
             
+            // Si se seleccionó un proveedor, crear la relación automáticamente
+            if (proveedorSeleccionado) {
+                fetch('/api/directorio', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id_producto: idProductoGenerado,
+                        codigo_proveedor: proveedorSeleccionado
+                    })
+                })
+                .then(response => response.json())
+                .then(directorioData => {
+                    if (directorioData.success) {
+                        alert(`✅ Producto y proveedor asignado exitosamente!\n\n📦 ${producto.nombre}\n🆔 ID generado: ${idProductoGenerado}\n📊 Stock: ${producto.stock}\n💰 Precio: $${producto.valor_unitario}\n🚚 Proveedor: Asignado\n📅 Vencimiento: ${producto.fecha_venc || 'No especificado'}`);
+                    } else {
+                        alert(`✅ Producto creado pero falló la asignación del proveedor\n\n📦 ${producto.nombre}\n🆔 ID generado: ${idProductoGenerado}\n⚠️ Puede asignar el proveedor manualmente después`);
+                    }
+                    completarCreacion();
+                })
+                .catch(() => {
+                    alert(`✅ Producto creado pero falló la asignación del proveedor\n\n📦 ${producto.nombre}\n🆔 ID generado: ${idProductoGenerado}\n⚠️ Puede asignar el proveedor manualmente después`);
+                    completarCreacion();
+                });
+            } else {
+                alert(`✅ Producto creado exitosamente!\n\n📦 ${producto.nombre}\n🆔 ID generado: ${idProductoGenerado}\n📊 Stock: ${producto.stock}\n💰 Precio: $${producto.valor_unitario}\n📅 Vencimiento: ${producto.fecha_venc || 'No especificado'}\n\n💡 Recuerde asignar un proveedor después`);
+                completarCreacion();
+            }
+            
+            function completarCreacion() {
             // Cerrar modal y limpiar formulario
             const modal = bootstrap.Modal.getInstance(document.getElementById('addProductModal'));
             modal.hide();
             form.reset();
+                cargarProveedores(); // Recargar proveedores en el select
             
             // Recargar página para mostrar el nuevo producto
             location.reload();
+            }
         } else {
             alert('❌ Error al crear producto: ' + (data.error || 'Error desconocido'));
         }
@@ -309,8 +568,416 @@ function guardarProducto() {
     });
 }
 
+// Función asignarProveedor ELIMINADA - ahora se hace directamente en crear/editar producto
+
+// Función para cargar proveedores en el select del modal de creación
+function cargarProveedores() {
+    fetch('/api/proveedores')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('proveedorSelect');
+            select.innerHTML = '<option value="">Sin proveedor (asignar después)</option>';
+            
+            if (data.success && data.data.length > 0) {
+                data.data.forEach(proveedor => {
+                    const option = document.createElement('option');
+                    option.value = proveedor.codigo;
+                    option.textContent = `${proveedor.nombre} (${proveedor.codigo})`;
+                    select.appendChild(option);
+                });
+            } else {
+                select.innerHTML = '<option value="">❌ No hay proveedores disponibles</option>';
+            }
+        })
+        .catch(() => {
+            const select = document.getElementById('proveedorSelect');
+            select.innerHTML = '<option value="">❌ Error al cargar proveedores</option>';
+        });
+}
+
+// Función para cargar proveedores y seleccionar el actual en edición
+function cargarProveedoresParaEdicion(idProducto) {
+    fetch('/api/proveedores')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('edit_proveedorSelect');
+            select.innerHTML = '<option value="">Sin proveedor asignado</option>';
+            
+            if (data.success && data.data.length > 0) {
+                data.data.forEach(proveedor => {
+                    const option = document.createElement('option');
+                    option.value = proveedor.codigo;
+                    option.textContent = `${proveedor.nombre} (${proveedor.codigo})`;
+                    select.appendChild(option);
+                });
+                
+                // Obtener el proveedor actual del producto
+                fetch('/api/directorio')
+                    .then(response => response.json())
+                    .then(directorioData => {
+                        if (directorioData.success) {
+                            const relacion = directorioData.data.find(item => item.id_producto === idProducto);
+                            if (relacion) {
+                                select.value = relacion.codigo_proveedor;
+                            }
+                        }
+                    })
+                    .catch(() => {
+                        console.log('No se pudo cargar la relación actual del producto');
+                    });
+            }
+        })
+        .catch(() => {
+            const select = document.getElementById('edit_proveedorSelect');
+            select.innerHTML = '<option value="">❌ Error al cargar proveedores</option>';
+        });
+}
+
+// Función para actualizar producto
+function actualizarProducto() {
+    const form = document.getElementById('editProductForm');
+    const formData = new FormData(form);
+    
+    const idProducto = parseInt(formData.get('id_producto'));
+    const producto = {
+        id_marca: 1, // Marca por defecto
+        nombre: formData.get('nombre'),
+        stock: parseInt(formData.get('stock')),
+        valor_unitario: parseFloat(formData.get('valor_unitario')),
+        fecha_venc: formData.get('fecha_venc') || null,
+        iva: parseInt(formData.get('iva'))
+    };
+    
+    const proveedorSeleccionado = formData.get('codigo_proveedor');
+    
+    // Validación básica
+    if (!producto.nombre || producto.stock === null || !producto.valor_unitario) {
+        alert('❌ Por favor complete todos los campos obligatorios');
+        return;
+    }
+    
+    // Agregar proveedor al producto directamente
+    if (proveedorSeleccionado) {
+        producto.codigo_proveedor = proveedorSeleccionado;
+    }
+    
+    // Actualizar producto
+    fetch(`/api/productos/${idProducto}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(producto)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Gestionar el cambio de proveedor
+            manejarCambioProveedor(idProducto, proveedorSeleccionado, producto.nombre);
+        } else {
+            alert('❌ Error al actualizar producto: ' + (data.error || 'Error desconocido'));
+        }
+    })
+    .catch(error => {
+        alert('❌ Error de conexión: ' + error.message);
+    });
+}
+
+// Función para manejar cambio de proveedor durante edición
+function manejarCambioProveedor(idProducto, nuevoProveedor, nombreProducto) {
+    // Primero obtener la relación actual
+    fetch('/api/directorio')
+        .then(response => response.json())
+        .then(directorioData => {
+            if (directorioData.success) {
+                const relacionActual = directorioData.data.find(item => item.id_producto === idProducto);
+                
+                if (relacionActual && nuevoProveedor && relacionActual.codigo_proveedor !== nuevoProveedor) {
+                    // Cambiar proveedor: eliminar relación actual y crear nueva
+                    fetch(`/api/directorio/${idProducto}/${relacionActual.codigo_proveedor}`, {
+                        method: 'DELETE'
+                    })
+                    .then(() => {
+                        return fetch('/api/directorio', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                id_producto: idProducto,
+                                codigo_proveedor: nuevoProveedor
+                            })
+                        });
+                    })
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.success) {
+                            alert(`✅ Producto y proveedor actualizados exitosamente!\n\n📦 ${nombreProducto}\n🚚 Proveedor cambiado`);
+                        } else {
+                            alert(`✅ Producto actualizado pero error al cambiar proveedor\n\n📦 ${nombreProducto}\n⚠️ Revise la asignación de proveedor`);
+                        }
+                        completarEdicion();
+                    })
+                    .catch(() => {
+                        alert(`✅ Producto actualizado pero error al cambiar proveedor\n\n📦 ${nombreProducto}`);
+                        completarEdicion();
+                    });
+                } else if (!relacionActual && nuevoProveedor) {
+                    // Asignar proveedor por primera vez
+                    fetch('/api/directorio', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            id_producto: idProducto,
+                            codigo_proveedor: nuevoProveedor
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.success) {
+                            alert(`✅ Producto actualizado y proveedor asignado!\n\n📦 ${nombreProducto}\n🚚 Proveedor asignado`);
+                        } else {
+                            alert(`✅ Producto actualizado pero error al asignar proveedor\n\n📦 ${nombreProducto}`);
+                        }
+                        completarEdicion();
+                    })
+                    .catch(() => {
+                        alert(`✅ Producto actualizado pero error al asignar proveedor\n\n📦 ${nombreProducto}`);
+                        completarEdicion();
+                    });
+                } else if (relacionActual && !nuevoProveedor) {
+                    // Remover proveedor
+                    fetch(`/api/directorio/${idProducto}/${relacionActual.codigo_proveedor}`, {
+                        method: 'DELETE'
+                    })
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.success) {
+                            alert(`✅ Producto actualizado y proveedor removido!\n\n📦 ${nombreProducto}\n🚚 Sin proveedor asignado`);
+                        } else {
+                            alert(`✅ Producto actualizado pero error al remover proveedor\n\n📦 ${nombreProducto}`);
+                        }
+                        completarEdicion();
+                    })
+                    .catch(() => {
+                        alert(`✅ Producto actualizado pero error al remover proveedor\n\n📦 ${nombreProducto}`);
+                        completarEdicion();
+                    });
+                } else {
+                    // Sin cambios en proveedor
+                    alert(`✅ Producto actualizado exitosamente!\n\n📦 ${nombreProducto}`);
+                    completarEdicion();
+                }
+            } else {
+                alert(`✅ Producto actualizado exitosamente!\n\n📦 ${nombreProducto}`);
+                completarEdicion();
+            }
+        })
+        .catch(() => {
+            alert(`✅ Producto actualizado exitosamente!\n\n📦 ${nombreProducto}`);
+            completarEdicion();
+        });
+    
+    function completarEdicion() {
+        // Cerrar modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('editProductModal'));
+        modal.hide();
+        
+        // Recargar página para mostrar cambios
+        location.reload();
+    }
+}
+
+// ========================================
+// VALIDACIONES PARA PRODUCTOS
+// ========================================
+
+function validarNombreProducto(input) {
+    const valor = input.value;
+    const contador = document.getElementById('contador_nombre_producto');
+    const error = document.getElementById('error_nombre_producto');
+    
+    contador.textContent = `${valor.length}/30`;
+    
+    if (valor.length === 0) {
+        input.classList.remove('is-valid', 'is-invalid');
+        error.textContent = '';
+    } else if (valor.length > 30) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        error.textContent = '❌ El nombre no puede exceder 30 caracteres';
+    } else if (valor.length < 3) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        error.textContent = '⚠️ El nombre debe tener al menos 3 caracteres';
+    } else {
+        input.classList.add('is-valid');
+        input.classList.remove('is-invalid');
+        error.textContent = '';
+    }
+    
+    validarFormularioProducto();
+}
+
+// Funciones duplicadas eliminadas - ya están definidas arriba
+
+function validarFormularioProducto() {
+    const nombre = document.querySelector('#addProductForm input[name="nombre"]');
+    const stock = document.querySelector('#addProductForm input[name="stock"]');
+    const precio = document.querySelector('#addProductForm input[name="valor_unitario"]');
+    
+    const nombreValido = nombre && nombre.classList.contains('is-valid') && nombre.value.length >= 3;
+    const stockValido = stock && stock.classList.contains('is-valid') && parseInt(stock.value) >= 0;
+    const precioValido = precio && precio.classList.contains('is-valid') && parseFloat(precio.value) > 0;
+    
+    // Buscar el botón correcto por onclick
+    const btnGuardar = document.querySelector('#addProductModal button[onclick="guardarProducto()"]');
+    
+    if (btnGuardar) {
+        if (nombreValido && stockValido && precioValido) {
+            btnGuardar.disabled = false;
+            btnGuardar.innerHTML = '<i class="fas fa-save"></i> Guardar Producto';
+            btnGuardar.classList.remove('btn-secondary');
+            btnGuardar.classList.add('btn-success');
+        } else {
+            btnGuardar.disabled = true;
+            btnGuardar.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Complete los campos requeridos';
+            btnGuardar.classList.remove('btn-success');
+            btnGuardar.classList.add('btn-secondary');
+        }
+    }
+}
+
+// Limpiar validaciones al cerrar modal de productos
+document.getElementById('addProductModal').addEventListener('hidden.bs.modal', function () {
+    const form = document.getElementById('addProductForm');
+    form.reset();
+    
+    // Limpiar validaciones
+    document.querySelectorAll('#addProductModal .is-valid, #addProductModal .is-invalid').forEach(el => {
+        el.classList.remove('is-valid', 'is-invalid');
+    });
+    
+    // Resetear contador
+    const contador = document.getElementById('contador_nombre_producto');
+    if (contador) contador.textContent = '0/30';
+    
+    // Resetear botón
+    const btnGuardar = document.querySelector('#addProductModal button[onclick="guardarProducto()"]');
+    if (btnGuardar) {
+        btnGuardar.disabled = true;
+        btnGuardar.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Complete los campos requeridos';
+        btnGuardar.classList.remove('btn-success');
+        btnGuardar.classList.add('btn-secondary');
+    }
+});
+
+// Cargar proveedores cuando se abre el modal de creación
+document.getElementById('addProductModal').addEventListener('show.bs.modal', cargarProveedores);
+
+// ========================================
+// FUNCIONES DE FILTRADO PARA PRODUCTOS
+// ========================================
+
+function aplicarFiltrosProductos() {
+    const searchText = document.getElementById('searchInput').value.toLowerCase();
+    const stockFilter = document.getElementById('stockFilter').value;
+    const estadoFilter = document.getElementById('estadoFilter').value;
+    
+    const cards = document.querySelectorAll('.producto-card');
+    let visibleCount = 0;
+    
+    cards.forEach(card => {
+        const nombre = card.dataset.nombre;
+        const stock = parseInt(card.dataset.stock);
+        const estado = card.dataset.estado;
+        
+        let visible = true;
+        
+        // Filtro de texto
+        if (searchText && !nombre.includes(searchText)) {
+            visible = false;
+        }
+        
+        // Filtro de stock
+        if (stockFilter) {
+            if (stockFilter === 'critico' && stock >= 10) visible = false;
+            if (stockFilter === 'bajo' && (stock < 10 || stock >= 30)) visible = false;
+            if (stockFilter === 'normal' && stock < 30) visible = false;
+        }
+        
+        // Filtro de estado
+        if (estadoFilter && estado !== estadoFilter) {
+            visible = false;
+        }
+        
+        card.style.display = visible ? 'block' : 'none';
+        if (visible) visibleCount++;
+    });
+    
+    // Mostrar mensaje si no hay resultados
+    const noResults = document.getElementById('noResultsProductos');
+    noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+}
+
+function limpiarFiltrosProductos() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('stockFilter').value = '';
+    document.getElementById('estadoFilter').value = '';
+    aplicarFiltrosProductos();
+}
+
+// ========================================
+// FUNCIONES DE INHABILITACIÓN/REACTIVACIÓN DE PRODUCTOS
+// ========================================
+
+function habilitarProducto(id, nombre) {
+    const mensaje = `✅ CONFIRMAR HABILITACIÓN\n\n📦 Producto: ${nombre} (ID: ${id})\n\n¿Habilitar este producto?\n\n✅ Volverá a estar activo\n✅ Disponible para operaciones normales`;
+
+    if (confirm(mensaje)) {
+        fetch(`/api/productos/${id}/reactivar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`✅ Producto habilitado exitosamente!\n\n📦 "${nombre}" ha sido habilitado.\n\n💡 El producto ya está disponible para operaciones normales.`);
+                location.reload();
+            } else {
+                alert('❌ Error al habilitar producto: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('❌ Error de conexión: ' + error.message);
+        });
+    }
+}
+
+function inhabilitarProducto(id, nombre) {
+    const mensaje = `🚫 CONFIRMAR INHABILITACIÓN\n\n📦 Producto: ${nombre} (ID: ${id})\n\n¿Inhabilitar este producto?\n\n✅ El producto será marcado como inactivo\n✅ Los datos se conservan para reactivación futura\n✅ No aparecerá en listados normales`;
+
+    if (confirm(mensaje)) {
+        fetch(`/api/productos/${id}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`✅ Producto inhabilitado exitosamente!\n\n📦 "${nombre}" ha sido marcado como inactivo.\n\n💡 Se puede reactivar desde el menú de administración.`);
+                location.reload();
+            } else {
+                alert('❌ Error al inhabilitar producto: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('❌ Error de conexión: ' + error.message);
+        });
+    }
+}
+
 // Búsqueda en tiempo real
-document.getElementById('searchInput').addEventListener('input', aplicarFiltros);
-document.getElementById('stockFilter').addEventListener('change', aplicarFiltros);
+document.getElementById('searchInput').addEventListener('input', aplicarFiltrosProductos);
+document.getElementById('stockFilter').addEventListener('change', aplicarFiltrosProductos);
+document.getElementById('estadoFilter').addEventListener('change', aplicarFiltrosProductos);
+
+// Funciones de prueba eliminadas - Sistema simplificado
 </script>
 {% endblock %} 
